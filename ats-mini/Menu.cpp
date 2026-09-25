@@ -180,6 +180,7 @@ const FMRegion fmRegions[] = {
   { 0x1, "EU/JP/AU" },
   // 75uS de-emphasis
   { 0x2, "US" },
+  { 0x1, "KR" },
 };
 
 //
@@ -739,7 +740,11 @@ void doFmRegion(int16_t enc)
 {
   FmRegionIdx = wrap_range(FmRegionIdx, enc, 0, LAST_ITEM(fmRegions));
   if(currentMode==FM)
+  {
     rx.setFMDeEmphasis(fmRegions[FmRegionIdx].value);
+    clearStationInfo();
+    identifyFrequency(currentFrequency);
+  }
 }
 
 //

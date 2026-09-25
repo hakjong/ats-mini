@@ -3,6 +3,8 @@
 #include "Utils.h"
 #include "Menu.h"
 #include "EIBI.h"
+#include "Stations.h"
+#include "KrFm.h"
 
 // CB frequency range
 #define MIN_CB_FREQUENCY 26060
@@ -64,7 +66,7 @@ const char *rbdsProgramTypes[32] =
   0, "Weather", "TEST", "! ALERT !"
 };
 
-static char bufStationName[50]  = "";
+static char bufStationName[64]  = "";
 static char bufRadioText[100]   = "";
 static char bufProgramInfo[100] = "";
 static uint16_t piCode = 0x0000;
@@ -74,7 +76,7 @@ const char *getStationName()
   if(switchThemeEditor())
     return("*STATION*");
   else
-    return(getRDSMode() & RDS_PS? bufStationName : "");
+    return((getRDSMode() & RDS_PS) || (currentMode == FM && FmRegionIdx == FM_REGION_KR) ? bufStationName : "");
 }
 
 const char *getRadioText()
@@ -319,8 +321,15 @@ bool identifyFrequency(uint16_t freq, bool periodic)
   static uint16_t last_freq = 0;
   static bool name_found = false;
 
-  // RDS has priority on FM
-  if(currentMode==FM) return(false);
+  // RDS has priority on FM; the Korean frequency guide is a fallback.
+  if(currentMode==FM)
+  {
+    if(periodic || FmRegionIdx != FM_REGION_KR) return(false);
+    stationsLoad(bandIdx);
+    if(bufStationName[0] && (uint8_t)bufStationName[0] != 0xFF) return(false);
+    name = krFmName(freq);
+    return(showStationName(name? name : "", true));
+  }
 
   // Do not try to look up static names more than once for the same freq
   if(periodic && last_freq==freq && name_found) return(false);

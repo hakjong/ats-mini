@@ -8,6 +8,7 @@
 
 // Band Types
 #define FM_BAND_TYPE  0
+#define FM_REGION_KR  2
 #define MW_BAND_TYPE  1
 #define SW_BAND_TYPE  2
 #define LW_BAND_TYPE  3

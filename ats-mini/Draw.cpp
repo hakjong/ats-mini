@@ -354,23 +354,25 @@ void drawStationName(const char *name, int x, int y)
 //
 void drawLongStationName(const char *name, int x, int y)
 {
-  int width = spr.textWidth(name, FONT_SMALL);
+  const lgfx::IFont *font = currentMode == FM && FmRegionIdx == FM_REGION_KR ?
+    &lgfx::fonts::efontKR_14 : FONT_SMALL;
+  int width = spr.textWidth(name, font);
   spr.setTextColor(TH.rds_text);
 
   if((x + width) >= 320)
   {
     spr.setTextDatum(TL_DATUM);
-    spr.drawString(name, x, y, FONT_SMALL);
+    spr.drawString(name, x, y, font);
   }
   else if(width <= 60)
   {
     spr.setTextDatum(TC_DATUM);
-    spr.drawString(name, x + (320 - x) / 3, y, FONT_SMALL);
+    spr.drawString(name, x + (320 - x) / 3, y, font);
   }
   else
   {
     spr.setTextDatum(TC_DATUM);
-    spr.drawString(name, x + (320 - x + width) / 4, y, FONT_SMALL);
+    spr.drawString(name, x + (320 - x + width) / 4, y, font);
   }
 }
 

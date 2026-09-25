@@ -4,6 +4,7 @@
 #include "Storage.h"
 #include "Stations.h"
 #include "Utils.h"
+#include "KrFm.h"
 
 #define STATION_LIMIT 128
 #define STATION_VERSION 1
@@ -62,6 +63,7 @@ void stationsLoad(uint8_t band)
         stations = {};
         break;
       }
+  krFmSetStations(stations.frequencies, current->bandMode == FM ? stations.count : 0);
 }
 
 uint8_t stationsCount() { return stations.count; }
@@ -135,6 +137,7 @@ bool stationsScan()
   scanFoundCount = 0;
   activeScan = &found;
   seekStop = false;
+  clearStationInfo();
   muteOn(MUTE_TEMP, true);
   rx.setFrequency(band->minimumFreq);
   scanProgress(band->minimumFreq);
@@ -192,6 +195,9 @@ bool stationsScan()
   {
     stations = found;
     selected = 0;
+    krFmSetStations(stations.frequencies, currentMode == FM ? stations.count : 0);
+    clearStationInfo();
+    identifyFrequency(currentFrequency);
   }
   return saved;
 }
