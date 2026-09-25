@@ -23,6 +23,8 @@ static SavedStations stations = {};
 static uint8_t loadedBand = 255;
 static uint8_t selected = 0;
 static bool scanAborted = false;
+static const SavedStations *activeScan = nullptr;
+static uint16_t scanFoundCount = 0;
 
 static void stationKey(char *key, uint8_t band)
 {
@@ -69,6 +71,14 @@ uint16_t stationsFrequency(uint8_t index)
   return index < stations.count ? stations.frequencies[index] : 0;
 }
 
+bool stationsScanning() { return activeScan != nullptr; }
+uint16_t stationsScanFoundCount() { return scanFoundCount; }
+uint8_t stationsScanListCount() { return activeScan ? activeScan->count : 0; }
+uint16_t stationsScanFrequency(uint8_t index)
+{
+  return activeScan && index < activeScan->count ? activeScan->frequencies[index] : 0;
+}
+
 static void scanProgress(uint16_t freq)
 {
   currentFrequency = freq;
@@ -79,6 +89,33 @@ static bool scanShouldStop()
 {
   if(consumeAbortPending()) scanAborted = true;
   return scanAborted;
+}
+
+static void rememberStation(SavedStations &found, uint16_t freq)
+{
+  ++scanFoundCount;
+  if(found.count < STATION_LIMIT)
+  {
+    found.frequencies[found.count++] = freq;
+    return;
+  }
+
+  // Keep scanning after the list fills. Replace one of the closest
+  // frequencies so saved stations remain spread across the whole band.
+  uint16_t smallestGap = freq - found.frequencies[STATION_LIMIT - 1];
+  uint8_t remove = STATION_LIMIT - 1;
+  for(uint8_t i = 1; i < STATION_LIMIT; ++i)
+  {
+    uint16_t gap = found.frequencies[i] - found.frequencies[i - 1];
+    if(gap < smallestGap)
+    {
+      smallestGap = gap;
+      remove = i - 1;
+    }
+  }
+  for(uint8_t i = remove; i < STATION_LIMIT - 1; ++i)
+    found.frequencies[i] = found.frequencies[i + 1];
+  found.frequencies[STATION_LIMIT - 1] = freq;
 }
 
 bool stationsScan()
@@ -95,39 +132,57 @@ bool stationsScan()
   found.maximumFreq = band->maximumFreq;
 
   scanAborted = false;
+  scanFoundCount = 0;
+  activeScan = &found;
   seekStop = false;
   muteOn(MUTE_TEMP, true);
   rx.setFrequency(band->minimumFreq);
+  scanProgress(band->minimumFreq);
   rx.getCurrentReceivedSignalQuality();
   if(rx.getCurrentRSSI() >= (currentMode == FM ? 5 : 10) &&
      rx.getCurrentSNR() >= (currentMode == FM ? 2 : 3))
-    found.frequencies[found.count++] = band->minimumFreq;
+  {
+    rememberStation(found, band->minimumFreq);
+    drawScreen();
+  }
 
   uint16_t previous = band->minimumFreq;
-  while(found.count < STATION_LIMIT && !scanShouldStop())
+  while(!scanShouldStop())
   {
     rx.seekStationProgress(scanProgress, scanShouldStop, 1);
     if(scanAborted) break;
-    if(rx.getBandLimit() || !rx.getStatusValid()) break;
+    if(rx.getBandLimit()) break;
 
     const uint16_t freq = rx.getFrequency();
-    if(freq <= previous || freq > band->maximumFreq) break;
+    if(freq > band->maximumFreq) break;
+    if(freq <= previous)
+    {
+      // A seek may time out without moving. Advance before trying again.
+      uint32_t next = (uint32_t)previous + getCurrentStep()->spacing;
+      if(next > band->maximumFreq) break;
+      rx.setFrequency(next);
+      previous = next;
+      continue;
+    }
+    previous = freq;
+    if(!rx.getStatusValid()) continue; // Seek timed out; resume from here.
+
     rx.getCurrentReceivedSignalQuality();
     if(rx.getCurrentRSSI() < (currentMode == FM ? 5 : 10) ||
-       rx.getCurrentSNR() < (currentMode == FM ? 2 : 3)) break;
-    found.frequencies[found.count++] = freq;
-    previous = freq;
+       rx.getCurrentSNR() < (currentMode == FM ? 2 : 3)) continue;
+    rememberStation(found, freq);
+    drawScreen();
     if(freq == band->maximumFreq) break;
   }
 
+  activeScan = nullptr;
   rx.setFrequency(originalFreq);
   currentFrequency = originalFreq;
   muteOn(MUTE_TEMP, false);
   clearStationInfo();
   identifyFrequency(currentFrequency);
 
-  if(scanAborted) return false;
-
+  // A user stop still commits the stations found so far.
   char key[16];
   stationKey(key, bandIdx);
   prefs.begin("stations", false, STORAGE_PARTITION);

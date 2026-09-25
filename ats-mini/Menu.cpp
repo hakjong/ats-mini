@@ -698,7 +698,7 @@ static void clickStations(bool shortPress)
     else
     {
       drawMessage("Scanning band...");
-      if(!stationsScan()) drawMessage("Scan cancelled");
+      if(!stationsScan()) drawMessage("Save failed");
     }
   }
   else currentCmd = CMD_NONE;
@@ -1393,6 +1393,32 @@ static void drawScan(int x, int y, int sx)
 static void drawStations(int x, int y, int sx)
 {
   char title[20];
+  if(stationsScanning())
+  {
+    snprintf(title, sizeof(title), "Found %u", stationsScanFoundCount());
+    drawCommon(title, x, y, sx);
+    spr.setTextDatum(MC_DATUM);
+    spr.setTextColor(TH.menu_item);
+
+    uint8_t count = stationsScanListCount();
+    if(!count)
+      spr.drawString("Searching...", 40+x+(sx/2), 64+y, FONT_SMALL);
+    else
+    {
+      uint8_t first = count > 5 ? count - 5 : 0;
+      for(uint8_t i = first; i < count; ++i)
+      {
+        char frequency[16];
+        if(currentMode == FM)
+          snprintf(frequency, sizeof(frequency), "%3.2f MHz", stationsScanFrequency(i) / 100.0);
+        else
+          snprintf(frequency, sizeof(frequency), "%u kHz", stationsScanFrequency(i));
+        spr.drawString(frequency, 40+x+(sx/2), 32+y+(i-first)*16, FONT_SMALL);
+      }
+    }
+    return;
+  }
+
   snprintf(title, sizeof(title), "Stations %u", stationsCount());
   drawCommon(title, x, y, sx, true);
 
