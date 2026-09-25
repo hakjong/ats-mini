@@ -64,6 +64,7 @@ The menu can be invoked by clicking the encoder button and is closed automatical
 * **AVC** - Sets the maximum gain for automatic volume control (not applicable to FM mode).
 * **SoftMute** - Sets softmute max attenuation (only applicable to AM/SSB).
 * **Settings** - Settings submenu.
+* **NTP Now** - With Wi-Fi set to Off, close the menu, temporarily connect to a saved network, synchronize the clock, and turn Wi-Fi off again. Press or rotate the encoder to cancel. The saved Wi-Fi mode does not change.
 
 ## Settings menu
 

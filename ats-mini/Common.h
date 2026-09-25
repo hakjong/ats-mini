@@ -250,6 +250,7 @@ int8_t getWiFiStatus();
 char *getWiFiIPAddress();
 void netInit(uint8_t netMode);
 void netStop();
+void netSyncTimeOnce();
 bool ntpIsAvailable();
 bool ntpSyncTime();
 

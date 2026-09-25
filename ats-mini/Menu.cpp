@@ -89,6 +89,7 @@ Band *getCurrentBand() { return(&bands[bandIdx]); }
 #define MENU_AVC         10
 #define MENU_SOFTMUTE    11
 #define MENU_SETTINGS    12
+#define MENU_NTP_NOW     13
 
 int8_t menuIdx = MENU_VOLUME;
 
@@ -107,6 +108,7 @@ static const char *menu[] =
   "AVC",
   "SoftMute",
   "Settings",
+  "NTP Now",
 };
 
 //
@@ -1019,6 +1021,7 @@ static void clickMenu(int cmd, bool shortPress)
     case MENU_AGC_ATT:  currentCmd = CMD_AGC;       break;
     case MENU_BAND:     currentCmd = CMD_BAND;      break;
     case MENU_SETTINGS: currentCmd = CMD_SETTINGS;  break;
+    case MENU_NTP_NOW:  netSyncTimeOnce();           break;
     case MENU_SQUELCH:  currentCmd = CMD_SQUELCH;   break;
     case MENU_VOLUME:   currentCmd = CMD_VOLUME;    break;
 

@@ -20,6 +20,7 @@
 
 #define CONNECT_TIME  3000  // Time of inactivity to start connecting WiFi
 #define WIFI_MULTI_TOTAL_TIMEOUT  30000
+#define NTP_SYNC_TIMEOUT  10000
 #define SPLASH_MAX_FILE_SIZE (512U * 1024U)
 
 #ifndef WIFI_POWER_LEVEL
@@ -53,7 +54,7 @@ WiFiUDP ntpUDP;
 NTPClient ntpClient(ntpUDP, "pool.ntp.org");
 
 static bool wifiInitAP();
-static bool wifiConnect();
+static bool wifiConnect(bool *canceled = nullptr);
 static void webInit();
 static void wifiRegisterPowerLevelCallback();
 static void wifiPowerLevelOnEvent(WiFiEvent_t event);
@@ -240,6 +241,63 @@ void netInit(uint8_t netMode)
   }
 }
 
+// Synchronize once while the saved WiFi mode remains Off.
+void netSyncTimeOnce()
+{
+  // An active AP or persistent connection belongs to the selected WiFi mode.
+  if(wifiModeIdx!=NET_OFF || WiFi.getMode()!=WIFI_MODE_NULL)
+  {
+    statusShow("Set Wi-Fi mode to Off");
+    return;
+  }
+
+  netStop();
+  wifiRegisterPowerLevelCallback();
+  WiFi.mode(WIFI_STA);
+
+  bool canceled = false;
+  bool connected = wifiConnect(&canceled);
+  bool synchronized = false;
+
+  if(connected && !canceled)
+  {
+    statusShow("Syncing time...", nullptr, 0);
+    drawScreen();
+    ntpClient.begin();
+
+    uint32_t start = millis();
+    while((millis() - start)<NTP_SYNC_TIMEOUT && !canceled)
+    {
+      if(consumeAbortPending())
+      {
+        canceled = true;
+        break;
+      }
+
+      // forceUpdate requires a fresh NTP reply; isTimeSet may be cached.
+      if(ntpClient.forceUpdate())
+      {
+        uint32_t epoch = ntpClient.getEpochTime();
+        clockSetEpoch(epoch);
+        int64_t difference = (int64_t)time(NULL) - epoch;
+        synchronized = clockAvailable() && difference>=-2 && difference<=2;
+        break;
+      }
+    }
+    if(consumeAbortPending()) canceled = true;
+  }
+
+  ntpClient.end();
+  netStop();
+
+  if(canceled)
+    statusShow(nullptr);
+  else if(!connected)
+    statusShow("WiFi connection failed");
+  else
+    statusShow(synchronized? "Time synchronized" : "NTP sync failed");
+}
+
 //
 // Returns TRUE if NTP time is available
 //
@@ -300,7 +358,7 @@ static bool wifiInitAP()
 //
 // Connect to a WiFi network
 //
-static bool wifiConnect()
+static bool wifiConnect(bool *canceled)
 {
   // Clean credentials
   wifiMulti.APlistClean();
@@ -340,6 +398,7 @@ static bool wifiConnect()
 
     if(consumeAbortPending())
     {
+      if(canceled) *canceled = true;
       WiFi.disconnect();
       break;
     }
@@ -348,7 +407,7 @@ static bool wifiConnect()
       delay(1000);
   }
 
-  return(wifiStatus == WL_CONNECTED);
+  return(wifiStatus == WL_CONNECTED && !(canceled && *canceled));
 }
 
 //
