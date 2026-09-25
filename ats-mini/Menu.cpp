@@ -19,9 +19,9 @@
 // bands by deleting lines. Change bands by editing lines below.
 //
 // NOTE:
-// You have to RESET PREFERENCES after adding or removing lines in this
-// table. Turn your receiver on with the encoder push button pressed
-// at first time to RESET the preferences.
+// Keep existing bands at their current indices so saved bands and memories
+// remain valid. If you reorder or remove bands, RESET PREFERENCES by turning
+// the receiver on with the encoder push button pressed.
 //
 
 int bandIdx = 0;
@@ -68,6 +68,9 @@ Band bands[] =
   // https://www.hfunderground.com/wiki/CB
   // Also see MIN_CB_FREQUENCY and MAX_CB_FREQUENCY
   {"CB",   SW_BAND_TYPE, AM,  25000, 28000, 27135, 0, 4, 0, 0},
+  {"DAY",  SW_BAND_TYPE, AM,   9000, 22000, 15450, 1, 4, 0, 0},
+  {"TWIL", SW_BAND_TYPE, AM,   6000, 16000,  9650, 1, 4, 0, 0},
+  {"NIGHT", SW_BAND_TYPE, AM,   5000, 12000,  6000, 1, 4, 0, 0},
 };
 
 int getTotalBands() { return(ITEM_COUNT(bands)); }

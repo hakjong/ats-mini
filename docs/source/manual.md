@@ -150,8 +150,8 @@ To reset the receiver settings (current band, frequency, favorite stations, down
 
 ## Bands table
 
-| Name | Min frequency | Max frequency | Default mode |
-|------|---------------|---------------|--------------|
+| Name  | Min frequency | Max frequency | Default mode |
+|-------|---------------|---------------|--------------|
 | VHF  | 64 MHz        | 108 MHz       | FM           |
 | ALL  | 150 kHz       | 30000 kHz     | AM           |
 | 11M  | 25600 kHz     | 26100 kHz     | AM           |
@@ -180,6 +180,11 @@ To reset the receiver settings (current band, frequency, favorite stations, down
 | 12M  | 24800 kHz     | 25000 kHz     | USB          |
 | 10M  | 28000 kHz     | 29700 kHz     | USB          |
 | CB   | 25000 kHz     | 28000 kHz     | AM           |
+| DAY  | 9000 kHz      | 22000 kHz     | AM           |
+| TWIL | 6000 kHz      | 16000 kHz     | AM           |
+| NIGHT | 5000 kHz      | 12000 kHz     | AM           |
+
+DAY is for daytime, TWIL for morning and evening twilight, and NIGHT for night and early morning shortwave listening.
 
 ## Remote control
 
