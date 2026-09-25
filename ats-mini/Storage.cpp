@@ -47,7 +47,7 @@ bool prefsAreWritten()
 void prefsInvalidate()
 {
   static const char *sections[] =
-  { "settings", "memories", "bands", "network", 0 };
+  { "settings", "memories", "bands", "stations", "network", 0 };
 
   // Clear all applicable sections
   for(int j = 0 ; sections[j] ; ++j)

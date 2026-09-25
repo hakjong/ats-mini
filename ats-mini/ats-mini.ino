@@ -953,7 +953,7 @@ void loop()
   if((currentTime - elapsedCommand) > ELAPSED_COMMAND)
   {
     // if(getCpuFrequencyMhz()!=80) setCpuFrequencyMhz(80);
-    if(currentCmd != CMD_NONE && currentCmd != CMD_SEEK && currentCmd != CMD_SCAN && currentCmd != CMD_MEMORY)
+    if(currentCmd != CMD_NONE && currentCmd != CMD_SEEK && currentCmd != CMD_SCAN && currentCmd != CMD_MEMORY && currentCmd != CMD_STATIONS)
     {
       currentCmd = CMD_NONE;
       needRedraw = true;

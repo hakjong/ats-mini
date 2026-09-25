@@ -7,6 +7,7 @@
 #include "Ota.h"
 #include "BleMode.h"
 #include "Menu.h"
+#include "Stations.h"
 
 #include <time.h>
 
@@ -82,14 +83,15 @@ Band *getCurrentBand() { return(&bands[bandIdx]); }
 #define MENU_STEP         3
 #define MENU_SEEK         4
 #define MENU_SCAN         5
-#define MENU_MEMORY       6
-#define MENU_SQUELCH      7
-#define MENU_BW           8
-#define MENU_AGC_ATT      9
-#define MENU_AVC         10
-#define MENU_SOFTMUTE    11
-#define MENU_SETTINGS    12
-#define MENU_NTP_NOW     13
+#define MENU_STATIONS     6
+#define MENU_MEMORY       7
+#define MENU_SQUELCH      8
+#define MENU_BW           9
+#define MENU_AGC_ATT     10
+#define MENU_AVC         11
+#define MENU_SOFTMUTE    12
+#define MENU_SETTINGS    13
+#define MENU_NTP_NOW     14
 
 int8_t menuIdx = MENU_VOLUME;
 
@@ -101,6 +103,7 @@ static const char *menu[] =
   "Step",
   "Seek",
   "Scan",
+  "Stations",
   "Memory",
   "Squelch",
   "Bandwidth",
@@ -686,6 +689,21 @@ static void clickScan(bool shortPress)
   else currentCmd = CMD_NONE;
 }
 
+static void clickStations(bool shortPress)
+{
+  if(shortPress)
+  {
+    if(isSSB())
+      drawMessage("AM/FM only");
+    else
+    {
+      drawMessage("Scanning band...");
+      if(!stationsScan()) drawMessage("Scan cancelled");
+    }
+  }
+  else currentCmd = CMD_NONE;
+}
+
 static void doTheme(int16_t enc)
 {
   themeIdx = wrap_range(themeIdx, enc, 0, getTotalThemes() - 1);
@@ -1049,6 +1067,11 @@ static void clickMenu(int cmd, bool shortPress)
       currentCmd = CMD_SCAN;
       clickScan(true);
       break;
+
+    case MENU_STATIONS:
+      stationsLoad(bandIdx);
+      currentCmd = CMD_STATIONS;
+      break;
   }
 }
 
@@ -1127,6 +1150,7 @@ bool doSideBar(uint16_t cmd, int16_t enc, int16_t enca)
     case CMD_UI:         doUILayout(scrollDirection * enc);break;
     case CMD_RDS:        doRDSMode(scrollDirection * enc);break;
     case CMD_MEMORY:     doMemory(scrollDirection * enca);break;
+    case CMD_STATIONS:   stationsSelect(scrollDirection * enc);break;
     case CMD_SLEEP:      doSleep(enca);break;
     case CMD_SLEEPMODE:  doSleepMode(scrollDirection * enc);break;
     case CMD_USBMODE:    doUSBMode(scrollDirection * enc);break;
@@ -1161,6 +1185,7 @@ bool clickHandler(uint16_t cmd, bool shortPress)
     case CMD_SQUELCH:  clickSquelch(shortPress);break;
     case CMD_SEEK:     clickSeek(shortPress);break;
     case CMD_SCAN:     clickScan(shortPress);break;
+    case CMD_STATIONS: clickStations(shortPress);break;
     case CMD_FREQ:     return(clickFreq(shortPress));
     case CMD_DATETIME: clickDateTime(shortPress);break;
     default:           return(false);
@@ -1363,6 +1388,39 @@ static void drawScan(int x, int y, int sx)
   spr.drawLine(40+x+(sx/2)-4, 66+y+5, 40+x+(sx/2), 66+y-16+5, TH.menu_param);
   spr.drawLine(40+x+(sx/2), 66+y-16+5, 40+x+(sx/2)+4, 66+y+5, TH.menu_param);
   spr.drawLine(40+x+(sx/2)+4, 66+y+5, 40+x+(sx/2)+17, 66+y+5, TH.menu_param);
+}
+
+static void drawStations(int x, int y, int sx)
+{
+  char title[20];
+  snprintf(title, sizeof(title), "Stations %u", stationsCount());
+  drawCommon(title, x, y, sx, true);
+
+  spr.setTextDatum(MC_DATUM);
+  if(!stationsCount())
+  {
+    spr.setTextColor(TH.menu_item);
+    spr.drawString("Hold to scan", 40+x+(sx/2), 64+y, FONT_SMALL);
+    return;
+  }
+
+  for(int i=-2; i<3; ++i)
+  {
+    int index = (stationsSelected() + stationsCount() + i) % stationsCount();
+    char frequency[16];
+    if(currentMode == FM)
+      snprintf(frequency, sizeof(frequency), "%3.2f MHz", stationsFrequency(index) / 100.0);
+    else
+      snprintf(frequency, sizeof(frequency), "%u kHz", stationsFrequency(index));
+
+    if(i == 0)
+    {
+      drawZoomedMenu(frequency);
+      spr.setTextColor(TH.menu_hl_text, TH.menu_hl_bg);
+    }
+    else spr.setTextColor(TH.menu_item);
+    spr.drawString(frequency, 40+x+(sx/2), 64+y+(i*16), FONT_SMALL);
+  }
 }
 
 static void drawBand(int x, int y, int sx)
@@ -1999,6 +2057,7 @@ void drawSideBar(uint16_t cmd, int x, int y, int sx)
     case CMD_STEP:       drawStep(x, y, sx);       break;
     case CMD_SEEK:       drawSeek(x, y, sx);       break;
     case CMD_SCAN:       drawScan(x, y, sx);       break;
+    case CMD_STATIONS:   drawStations(x, y, sx);   break;
     case CMD_BAND:       drawBand(x, y, sx);       break;
     case CMD_BANDWIDTH:  drawBandwidth(x, y, sx);  break;
     case CMD_THEME:      drawTheme(x, y, sx);      break;
