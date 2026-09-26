@@ -693,19 +693,36 @@ static void clickScan(bool shortPress)
   else currentCmd = CMD_NONE;
 }
 
+static bool stationDeleteConfirm = false;
+
 static void clickStations(bool shortPress)
 {
-  if(shortPress)
+  if(!shortPress)
   {
-    if(isSSB())
-      drawMessage("AM/FM only");
+    stationDeleteConfirm = false;
+    currentCmd = CMD_NONE;
+    return;
+  }
+
+  if(stationsSelected() == 0)
+  {
+    if(isSSB()) drawMessage("AM/FM only");
     else
     {
       drawMessage("Scanning band...");
       if(!stationsScan()) drawMessage("Save failed");
     }
+    return;
   }
-  else currentCmd = CMD_NONE;
+
+  if(!stationDeleteConfirm)
+  {
+    stationDeleteConfirm = true;
+    return;
+  }
+  stationDeleteConfirm = false;
+  if(!(stationsSelected() == 1 ? stationsClear() : stationsDeleteSelected()))
+    drawMessage("Save failed");
 }
 
 static void doTheme(int16_t enc)
@@ -1078,6 +1095,7 @@ static void clickMenu(int cmd, bool shortPress)
 
     case MENU_STATIONS:
       stationsLoad(bandIdx);
+      stationDeleteConfirm = false;
       currentCmd = CMD_STATIONS;
       break;
   }
@@ -1158,7 +1176,7 @@ bool doSideBar(uint16_t cmd, int16_t enc, int16_t enca)
     case CMD_UI:         doUILayout(scrollDirection * enc);break;
     case CMD_RDS:        doRDSMode(scrollDirection * enc);break;
     case CMD_MEMORY:     doMemory(scrollDirection * enca);break;
-    case CMD_STATIONS:   stationsSelect(scrollDirection * enc);break;
+    case CMD_STATIONS:   stationDeleteConfirm = false; stationsSelect(scrollDirection * enc);break;
     case CMD_SLEEP:      doSleep(enca);break;
     case CMD_SLEEPMODE:  doSleepMode(scrollDirection * enc);break;
     case CMD_USBMODE:    doUSBMode(scrollDirection * enc);break;
@@ -1427,29 +1445,31 @@ static void drawStations(int x, int y, int sx)
     return;
   }
 
-  snprintf(title, sizeof(title), "Stations %u", stationsCount());
+  if(stationDeleteConfirm)
+    snprintf(title, sizeof(title), "%s", stationsSelected() == 1 ? "Clear all?" : "Delete?");
+  else
+    snprintf(title, sizeof(title), "Stations %u", stationsCount());
   drawCommon(title, x, y, sx, true);
 
   spr.setTextDatum(MC_DATUM);
-  if(!stationsCount())
-  {
-    spr.setTextColor(TH.menu_item);
-    spr.drawString("Hold to scan", 40+x+(sx/2), 64+y, FONT_SMALL);
-    return;
-  }
-
+  int count = stationsCount() + 2;
   for(int i=-2; i<3; ++i)
   {
-    int index = (stationsSelected() + stationsCount() + i) % stationsCount();
+    int index = stationsSelected() + i;
+    if(index < 0 || index >= count) continue;
     char frequency[16];
-    if(currentMode == FM)
-      snprintf(frequency, sizeof(frequency), "%3.2f MHz", stationsFrequency(index) / 100.0);
+    if(index == 0)
+      strlcpy(frequency, "Scan", sizeof(frequency));
+    else if(index == 1)
+      strlcpy(frequency, "Clear", sizeof(frequency));
+    else if(currentMode == FM)
+      snprintf(frequency, sizeof(frequency), "%3.2f MHz", stationsFrequency(index - 2) / 100.0);
     else
-      snprintf(frequency, sizeof(frequency), "%u kHz", stationsFrequency(index));
+      snprintf(frequency, sizeof(frequency), "%u kHz", stationsFrequency(index - 2));
 
     if(i == 0)
     {
-      drawZoomedMenu(frequency);
+      drawZoomedMenu(stationDeleteConfirm ? "Hold again" : frequency);
       spr.setTextColor(TH.menu_hl_text, TH.menu_hl_bg);
     }
     else spr.setTextColor(TH.menu_item);

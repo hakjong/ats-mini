@@ -6,6 +6,8 @@
 void stationsLoad(uint8_t band);
 bool stationsScan();
 void stationsSelect(int16_t direction);
+bool stationsClear();
+bool stationsDeleteSelected();
 uint8_t stationsCount();
 uint8_t stationsSelected();
 uint16_t stationsFrequency(uint8_t index);

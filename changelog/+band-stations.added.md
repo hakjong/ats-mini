@@ -1,1 +1,1 @@
-Added a full band AM/FM station scan with a saved station list for each band and live scan results in the left panel. Stopping a scan saves the stations found so far.
+Added a full band AM/FM station scan with a saved, sorted station list for each band and live scan results in the left panel. The Stations menu has Scan and Clear entries; hold Scan to add newly found frequencies while keeping existing ones, or stop a scan to save progress. Hold a saved frequency or Clear twice to confirm deletion.

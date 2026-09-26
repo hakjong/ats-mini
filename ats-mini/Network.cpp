@@ -17,6 +17,10 @@
 #include <ESPmDNS.h>
 #include <LittleFS.h>
 #include <time.h>
+#include <atomic>
+#include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
+#include <freertos/task.h>
 
 #define CONNECT_TIME  3000  // Time of inactivity to start connecting WiFi
 #define WIFI_MULTI_TOTAL_TIMEOUT  30000
@@ -41,6 +45,31 @@ static const int   apClients = 3;       // Maximum simultaneous connected client
 static bool itIsTimeToWiFi = false; // TRUE: Need to connect to WiFi
 static uint32_t connectTime = 0;
 
+enum NetAction : uint8_t { NET_STOP, NET_INIT, NET_SYNC_ONCE, NET_REFRESH };
+
+struct NetRequest
+{
+  NetAction action;
+  uint8_t mode;
+  uint32_t generation;
+};
+
+struct NetEvent
+{
+  uint32_t generation;
+  uint32_t epoch;
+  uint32_t duration;
+  char line1[96];
+  char line2[96];
+};
+
+static QueueHandle_t netRequests = nullptr;
+static QueueHandle_t netEvents = nullptr;
+static std::atomic<uint32_t> netGeneration{0};
+static std::atomic<uint32_t> netCompleted{0};
+static std::atomic<bool> ntpHasTime{false};
+static std::atomic<NetAction> netAction{NET_STOP};
+
 // Settings
 String loginUsername = "";
 String loginPassword = "";
@@ -54,7 +83,12 @@ WiFiUDP ntpUDP;
 NTPClient ntpClient(ntpUDP, "pool.ntp.org");
 
 static bool wifiInitAP();
-static bool wifiConnect(bool *canceled = nullptr);
+static bool wifiConnect(uint32_t generation);
+static void wifiStopHardware();
+static void netWorker(void *parameter);
+static bool netQueue(NetAction action, uint8_t mode = NET_OFF);
+static void netPost(uint32_t generation, const char *line1 = nullptr,
+                    const char *line2 = nullptr, uint32_t duration = 2000, uint32_t epoch = 0);
 static void webInit();
 static void wifiRegisterPowerLevelCallback();
 static void wifiPowerLevelOnEvent(WiFiEvent_t event);
@@ -94,6 +128,46 @@ static bool webIsAuthenticated(AsyncWebServerRequest *request)
 //
 // Delayed WiFi connection
 //
+static bool netQueue(NetAction action, uint8_t mode)
+{
+  if(!netRequests)
+  {
+    netRequests = xQueueCreate(1, sizeof(NetRequest));
+    netEvents = xQueueCreate(6, sizeof(NetEvent));
+    if(!netRequests || !netEvents ||
+       xTaskCreatePinnedToCore(netWorker, "network", 12288, nullptr, 1, nullptr, 0) != pdPASS)
+    {
+      if(netRequests) vQueueDelete(netRequests);
+      if(netEvents) vQueueDelete(netEvents);
+      netRequests = netEvents = nullptr;
+      statusShow("WiFi task failed");
+      return false;
+    }
+  }
+
+  NetRequest request = { action, mode, netGeneration.fetch_add(1) + 1 };
+  netAction.store(action);
+  xQueueOverwrite(netRequests, &request);
+  return true;
+}
+
+static void netPost(uint32_t generation, const char *line1, const char *line2,
+                    uint32_t duration, uint32_t epoch)
+{
+  NetEvent event = {};
+  event.generation = generation;
+  event.epoch = epoch;
+  event.duration = duration;
+  strlcpy(event.line1, line1 ? line1 : "", sizeof(event.line1));
+  strlcpy(event.line2, line2 ? line2 : "", sizeof(event.line2));
+  if(xQueueSend(netEvents, &event, 0) != pdTRUE)
+  {
+    NetEvent discarded;
+    xQueueReceive(netEvents, &discarded, 0);
+    xQueueSend(netEvents, &event, 0);
+  }
+}
+
 void netRequestConnect()
 {
   connectTime = millis();
@@ -103,6 +177,19 @@ void netRequestConnect()
 void netTickTime()
 {
   otaTick();
+
+  NetEvent event;
+  while(netEvents && xQueueReceive(netEvents, &event, 0) == pdTRUE)
+  {
+    if(event.generation != netGeneration.load()) continue;
+    if(event.epoch)
+    {
+      clockSetEpoch(event.epoch);
+      ntpHasTime.store(clockAvailable());
+    }
+    if(event.line1[0] || event.line2[0] || event.duration == 0)
+      statusShow(event.line1, event.line2, event.duration);
+  }
 
   // Connect to WiFi if requested
   if(itIsTimeToWiFi && ((millis() - connectTime) > CONNECT_TIME))
@@ -147,8 +234,23 @@ char *getWiFiIPAddress()
 void netStop()
 {
   tcpStop();
+  if(!netRequests)
+  {
+    wifiStopHardware();
+    return;
+  }
+  if(!netQueue(NET_STOP)) return;
+  uint32_t generation = netGeneration.load();
+  // Called before CPU sleep: wait until the radio has actually stopped.
+  uint32_t start = millis();
+  while(netCompleted.load() < generation && millis() - start < 10000) delay(10);
+}
+
+static void wifiStopHardware()
+{
   wifi_mode_t mode = WiFi.getMode();
 
+  ntpClient.end();
   MDNS.end();
 
   // If network connection up, shut it down
@@ -163,139 +265,36 @@ void netStop()
 }
 
 //
-// Initialize WiFi network and services
+// Start WiFi initialization without delaying the receiver UI.
 //
 void netInit(uint8_t netMode)
 {
-  // Always disable WiFi first
-  netStop();
-  wifiRegisterPowerLevelCallback();
-
-  switch(netMode)
-  {
-    case NET_OFF:
-      // Do not initialize WiFi if disabled
-      return;
-    case NET_AP_ONLY:
-      // Start WiFi access point if requested
-      WiFi.mode(WIFI_AP);
-      wifiInitAP();
-      break;
-    case NET_AP_CONNECT:
-      // Start WiFi access point if requested
-      WiFi.mode(WIFI_AP_STA);
-      wifiInitAP();
-      break;
-    default:
-      // No access point
-      WiFi.mode(WIFI_STA);
-      break;
-  }
-
-  // Initialize WiFi and try connecting to a network
-  if(netMode>NET_AP_ONLY && wifiConnect())
-  {
-    // NTP time updates will happen every 5 minutes
-    ntpClient.setUpdateInterval(5*60*1000);
-
-    // Get NTP time from the network
-    clockReset();
-    for(int j=0 ; j<10 ; j++)
-      if(ntpSyncTime()) break; else delay(500);
-
-    // Start the result timeout after the blocking time synchronization.
-    if(netMode!=NET_SYNC)
-      statusShow(
-        ("Connected to WiFi network (" + WiFi.SSID() + ")").c_str(),
-        ("IP : " + WiFi.localIP().toString() + " or atsmini.local").c_str()
-      );
-    else
-      statusShow(nullptr);
-  }
-  else if(netMode==NET_AP_ONLY || netMode==NET_AP_CONNECT)
-  {
-    // Show the access point details when it is the available connection.
-    statusShow(
-      ("Use Access Point " + String(apSSID)).c_str(),
-      ("IP : " + WiFi.softAPIP().toString() + " or atsmini.local").c_str()
-    );
-  }
+  tcpStop();
+  if(netMode == NET_OFF && !netRequests) return;
+  if(netMode != NET_OFF)
+    statusShow(netMode == NET_AP_ONLY ? "Starting access point..." : "Connecting to WiFi network...", nullptr, 0);
   else
-    statusShow("Connecting to WiFi network...", "No WiFi connection");
-
-  // If only connected to sync...
-  if(netMode==NET_SYNC)
-  {
-    // Drop network connection
-    WiFi.disconnect(true);
-    WiFi.mode(WIFI_MODE_NULL);
-  }
-  else
-  {
-    // Initialize web server for remote configuration
-    webInit();
-
-    // Initialize mDNS
-    MDNS.begin("atsmini"); // Set the hostname to "atsmini.local"
-    MDNS.addService("http", "tcp", 80);
-  }
+    statusShow(nullptr);
+  netQueue(NET_INIT, netMode);
 }
 
 // Synchronize once while the saved WiFi mode remains Off.
 void netSyncTimeOnce()
 {
-  // An active AP or persistent connection belongs to the selected WiFi mode.
-  if(wifiModeIdx!=NET_OFF || WiFi.getMode()!=WIFI_MODE_NULL)
+  if(wifiModeIdx != NET_OFF)
   {
     statusShow("Set Wi-Fi mode to Off");
     return;
   }
+  statusShow("Connecting to WiFi network...", nullptr, 0);
+  netQueue(NET_SYNC_ONCE);
+}
 
-  netStop();
-  wifiRegisterPowerLevelCallback();
-  WiFi.mode(WIFI_STA);
-
-  bool canceled = false;
-  bool connected = wifiConnect(&canceled);
-  bool synchronized = false;
-
-  if(connected && !canceled)
-  {
-    statusShow("Syncing time...", nullptr, 0);
-    drawScreen();
-    ntpClient.begin();
-
-    uint32_t start = millis();
-    while((millis() - start)<NTP_SYNC_TIMEOUT && !canceled)
-    {
-      if(consumeAbortPending())
-      {
-        canceled = true;
-        break;
-      }
-
-      // forceUpdate requires a fresh NTP reply; isTimeSet may be cached.
-      if(ntpClient.forceUpdate())
-      {
-        uint32_t epoch = ntpClient.getEpochTime();
-        clockSetEpoch(epoch);
-        int64_t difference = (int64_t)time(NULL) - epoch;
-        synchronized = clockAvailable() && difference>=-2 && difference<=2;
-        break;
-      }
-    }
-    if(consumeAbortPending()) canceled = true;
-  }
-
-  ntpClient.end();
-  netStop();
-
-  if(canceled)
-    statusShow(nullptr);
-  else if(!connected)
-    statusShow("WiFi connection failed");
-  else
-    statusShow(synchronized? "Time synchronized" : "NTP sync failed");
+void netCancelSyncOnce()
+{
+  if(netCompleted.load() == netGeneration.load() || netAction.load() != NET_SYNC_ONCE) return;
+  statusShow(nullptr);
+  netQueue(NET_STOP);
 }
 
 //
@@ -303,7 +302,7 @@ void netSyncTimeOnce()
 //
 bool ntpIsAvailable()
 {
-  return(ntpClient.isTimeSet());
+  return(ntpHasTime.load());
 }
 
 //
@@ -311,14 +310,112 @@ bool ntpIsAvailable()
 //
 bool ntpSyncTime()
 {
-  if(WiFi.status()==WL_CONNECTED)
-  {
-    ntpClient.update();
-
-    if(ntpClient.isTimeSet())
-      return(clockSetEpoch(ntpClient.getEpochTime()));
-  }
+  if(WiFi.status() == WL_CONNECTED && netCompleted.load() == netGeneration.load()) netQueue(NET_REFRESH);
   return(false);
+}
+
+static uint32_t netGetNtp(uint32_t generation, bool fresh)
+{
+  ntpClient.begin();
+  uint32_t start = millis();
+  for(uint8_t attempt = 0; attempt < 10 && millis() - start < NTP_SYNC_TIMEOUT; ++attempt)
+  {
+    if(generation != netGeneration.load()) break;
+    bool updated = fresh ? ntpClient.forceUpdate() : ntpClient.update();
+    if(updated || (!fresh && ntpClient.isTimeSet()))
+      return ntpClient.getEpochTime();
+    delay(500);
+  }
+  return 0;
+}
+
+static void netWorker(void *parameter)
+{
+  (void)parameter;
+  NetRequest request;
+  while(xQueueReceive(netRequests, &request, portMAX_DELAY) == pdTRUE)
+  {
+    if(request.generation != netGeneration.load()) continue;
+
+    if(request.action == NET_REFRESH)
+    {
+      if(WiFi.status() == WL_CONNECTED)
+      {
+        ntpClient.update();
+        if(ntpClient.isTimeSet())
+          netPost(request.generation, nullptr, nullptr, 2000, ntpClient.getEpochTime());
+      }
+    }
+    else
+    {
+      wifiStopHardware();
+      if(request.action != NET_STOP && !(request.action == NET_INIT && request.mode == NET_OFF))
+      {
+        wifiRegisterPowerLevelCallback();
+        uint8_t mode = request.action == NET_SYNC_ONCE ? NET_SYNC : request.mode;
+        if(mode == NET_AP_ONLY || mode == NET_AP_CONNECT)
+        {
+          WiFi.mode(mode == NET_AP_ONLY ? WIFI_AP : WIFI_AP_STA);
+          wifiInitAP();
+        }
+        else WiFi.mode(WIFI_STA);
+
+        bool connected = mode > NET_AP_ONLY && wifiConnect(request.generation);
+        if(request.generation != netGeneration.load())
+        {
+          wifiStopHardware();
+          continue;
+        }
+
+        if(connected)
+        {
+          ntpClient.setUpdateInterval(5 * 60 * 1000);
+          netPost(request.generation, "Syncing time...", nullptr, 0);
+          uint32_t epoch = netGetNtp(request.generation, request.action == NET_SYNC_ONCE);
+          if(request.generation != netGeneration.load())
+          {
+            wifiStopHardware();
+            continue;
+          }
+          if(epoch) netPost(request.generation, nullptr, nullptr, 2000, epoch);
+          if(mode == NET_SYNC)
+          {
+            wifiStopHardware();
+            netPost(request.generation,
+                    request.action == NET_SYNC_ONCE ? (epoch ? "Time synchronized" : "NTP sync failed") : nullptr,
+                    nullptr, request.action == NET_SYNC_ONCE ? 2000 : 0);
+          }
+          else
+            netPost(request.generation,
+                    ("Connected to WiFi network (" + WiFi.SSID() + ")").c_str(),
+                    ("IP : " + WiFi.localIP().toString() + " or atsmini.local").c_str());
+        }
+        else if(mode == NET_SYNC)
+        {
+          wifiStopHardware();
+          netPost(request.generation, request.action == NET_SYNC_ONCE ? "WiFi connection failed" : "No WiFi connection");
+        }
+        else if(mode == NET_AP_ONLY || mode == NET_AP_CONNECT)
+          netPost(request.generation, ("Use Access Point " + String(apSSID)).c_str(),
+                  ("IP : " + WiFi.softAPIP().toString() + " or atsmini.local").c_str());
+        else
+          netPost(request.generation, "No WiFi connection");
+
+        if(mode != NET_SYNC && request.generation == netGeneration.load())
+        {
+          webInit();
+          MDNS.begin("atsmini");
+          MDNS.addService("http", "tcp", 80);
+        }
+      }
+    }
+
+    if(request.generation == netGeneration.load())
+    {
+      netCompleted.store(request.generation);
+    }
+  }
+  vTaskDelete(nullptr);
 }
 
 static void wifiRegisterPowerLevelCallback()
@@ -358,16 +455,17 @@ static bool wifiInitAP()
 //
 // Connect to a WiFi network
 //
-static bool wifiConnect(bool *canceled)
+static bool wifiConnect(uint32_t generation)
 {
   // Clean credentials
   wifiMulti.APlistClean();
 
   // Get the preferences
-  prefs.begin("network", true, STORAGE_PARTITION);
-  loginUsername = prefs.getString("loginusername", "");
-  loginPassword = prefs.getString("loginpassword", "");
-  wifiScanHidden = prefs.getBool("wifiscanhidden", false);
+  Preferences wifiPrefs;
+  wifiPrefs.begin("network", true, STORAGE_PARTITION);
+  loginUsername = wifiPrefs.getString("loginusername", "");
+  loginPassword = wifiPrefs.getString("loginpassword", "");
+  wifiScanHidden = wifiPrefs.getBool("wifiscanhidden", false);
 
   // Try connecting to known WiFi networks
   for(int j=0 ; (j<3) ; j++)
@@ -376,38 +474,27 @@ static bool wifiConnect(bool *canceled)
     sprintf(nameSSID, "wifissid%d", j+1);
     sprintf(namePASS, "wifipass%d", j+1);
 
-    String ssid = prefs.getString(nameSSID, "");
-    String password = prefs.getString(namePASS, "");
+    String ssid = wifiPrefs.getString(nameSSID, "");
+    String password = wifiPrefs.getString(namePASS, "");
 
     if(ssid != "")
       wifiMulti.addAP(ssid.c_str(), password.c_str());
   }
 
   // Done with preferences
-  prefs.end();
+  wifiPrefs.end();
 
-  statusShow("Connecting to WiFi network...", nullptr, 0);
-  drawScreen();
-
-  consumeAbortPending();
   wl_status_t wifiStatus = WL_NO_SSID_AVAIL;
   uint32_t start = millis();
-  while(((millis() - start)<WIFI_MULTI_TOTAL_TIMEOUT) && (wifiStatus!=WL_CONNECTED))
+  while((millis() - start < WIFI_MULTI_TOTAL_TIMEOUT) && wifiStatus != WL_CONNECTED &&
+        generation == netGeneration.load())
   {
     wifiStatus = (wl_status_t)wifiMulti.run(5000, wifiScanHidden);
-
-    if(consumeAbortPending())
-    {
-      if(canceled) *canceled = true;
-      WiFi.disconnect();
-      break;
-    }
-
-    if((wifiStatus!=WL_CONNECTED) && ((millis() - start)<WIFI_MULTI_TOTAL_TIMEOUT))
+    if(wifiStatus != WL_CONNECTED && millis() - start < WIFI_MULTI_TOTAL_TIMEOUT)
       delay(1000);
   }
 
-  return(wifiStatus == WL_CONNECTED && !(canceled && *canceled));
+  return(wifiStatus == WL_CONNECTED && generation == netGeneration.load());
 }
 
 //

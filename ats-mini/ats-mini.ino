@@ -803,6 +803,9 @@ void loop()
   encCountAccel = tcp_direction? tcp_direction : encCountAccel;
   if(tcp_event & REMOTE_PREFS) prefsRequestSave(SAVE_ALL);
 
+  // User input cancels an in-progress one-shot NTP sync without blocking tuning.
+  if(encCount || pb1st.wasClicked || pb1st.wasShortPressed) netCancelSyncOnce();
+
   // Block encoder rotation when in the locked sleep mode
   if(encCount && sleepOn() && sleepModeIdx==SLEEP_LOCKED) encCount = encCountAccel = 0;
 
