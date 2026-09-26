@@ -8,6 +8,8 @@
 #include "BleMode.h"
 #include "Menu.h"
 #include "Stations.h"
+#include "Storage.h"
+#include "KrFm.h"
 
 #include <time.h>
 
@@ -97,41 +99,53 @@ Band *getCurrentBand() { return(&bands[bandIdx]); }
 // Main Menu
 //
 
-#define MENU_MODE         0
-#define MENU_BAND         1
-#define MENU_VOLUME       2
-#define MENU_STEP         3
+#define MENU_BAND         0
+#define MENU_VOLUME       1
+#define MENU_STEP         2
+#define MENU_TUNING       3
 #define MENU_SEEK         4
 #define MENU_SCAN         5
 #define MENU_STATIONS     6
 #define MENU_MEMORY       7
-#define MENU_SQUELCH      8
-#define MENU_BW           9
-#define MENU_AGC_ATT     10
-#define MENU_AVC         11
-#define MENU_SOFTMUTE    12
-#define MENU_SETTINGS    13
-#define MENU_NTP_NOW     14
+#define MENU_MORE         8
+#define MENU_SETTINGS     9
+#define MENU_NTP_NOW     10
 
 int8_t menuIdx = MENU_VOLUME;
+uint8_t tuneModeIdx = TUNE_STATIONS;
 
 static const char *menu[] =
 {
-  "Mode",
   "Band",
   "Volume",
   "Step",
+  "Tune-Saved",
   "Seek",
   "Scan",
   "Stations",
   "Memory",
-  "Squelch",
-  "Bandwidth",
-  "AGC/ATTN",
-  "AVC",
-  "SoftMute",
+  "More",
   "Settings",
   "NTP Now",
+};
+
+static const char *menuLabel(int index)
+{
+  if(index == MENU_TUNING) return tuneModeIdx == TUNE_STATIONS ? "Tune-Saved" : "Tune-Step";
+  return menu[index];
+}
+
+// More submenu
+#define MORE_SQUELCH   0
+#define MORE_BW        1
+#define MORE_AGC_ATT   2
+#define MORE_AVC       3
+#define MORE_SOFTMUTE  4
+#define MORE_MODE      5
+
+static int8_t moreIdx = MORE_SQUELCH;
+static const char *const more[] = {
+  "Squelch", "Bandwidth", "AGC/ATTN", "AVC", "SoftMute", "Mode",
 };
 
 //
@@ -144,20 +158,21 @@ static const char *menu[] =
 #define MENU_UTCOFFSET    3
 #define MENU_DATETIME     4
 #define MENU_FM_REGION    5
-#define MENU_FM_STEREO    6
-#define MENU_THEME        7
-#define MENU_UI           8
-#define MENU_ZOOM         9
-#define MENU_SCROLL       10
-#define MENU_SLEEP        11
-#define MENU_SLEEPMODE    12
-#define MENU_LOADEIBI     13
-#define MENU_USBMODE      14
-#define MENU_TCPMODE      15
-#define MENU_BLEMODE      16
-#define MENU_WIFIMODE     17
-#define MENU_UPDATEFW     18
-#define MENU_ABOUT        19
+#define MENU_KR_AREA      6
+#define MENU_FM_STEREO    7
+#define MENU_THEME        8
+#define MENU_UI           9
+#define MENU_ZOOM         10
+#define MENU_SCROLL       11
+#define MENU_SLEEP        12
+#define MENU_SLEEPMODE    13
+#define MENU_LOADEIBI    14
+#define MENU_USBMODE     15
+#define MENU_TCPMODE     16
+#define MENU_BLEMODE     17
+#define MENU_WIFIMODE    18
+#define MENU_UPDATEFW    19
+#define MENU_ABOUT       20
 
 
 static uint8_t updateFwIdx = 0;
@@ -173,6 +188,7 @@ static const char *settings[] =
   "UTC Offset",
   "Date/Time",
   "FM Region",
+  "KR Area",
   "FM Stereo",
   "Theme",
   "UI Layout",
@@ -721,13 +737,13 @@ static void clickStations(bool shortPress)
     return;
   }
 
-  if(stationsSelected() == 0)
+  if(stationsSelected() <= STATION_APPEND_SCAN)
   {
     if(isSSB()) drawMessage("AM/FM only");
     else
     {
       drawMessage("Scanning band...");
-      if(!stationsScan()) drawMessage("Save failed");
+      if(!stationsScan(stationsSelected() == STATION_APPEND_SCAN)) drawMessage("Save failed");
     }
     return;
   }
@@ -738,7 +754,7 @@ static void clickStations(bool shortPress)
     return;
   }
   stationDeleteConfirm = false;
-  if(!(stationsSelected() == 1 ? stationsClear() : stationsDeleteSelected()))
+  if(!(stationsSelected() == STATION_CLEAR ? stationsClear() : stationsDeleteSelected()))
     drawMessage("Save failed");
 }
 
@@ -776,6 +792,19 @@ void doFmRegion(int16_t enc)
   if(currentMode==FM)
   {
     rx.setFMDeEmphasis(fmRegions[FmRegionIdx].value);
+    clearStationInfo();
+    identifyFrequency(currentFrequency);
+  }
+}
+
+static void doKrArea(int16_t enc)
+{
+  uint8_t manual = krFmManualRegion();
+  int selection = manual == KR_FM_AUTO ? 0 : manual + 1;
+  selection = wrap_range(selection, enc, 0, krFmRegionCount());
+  krFmSetManualRegion(selection ? selection - 1 : KR_FM_AUTO);
+  if(currentMode == FM)
+  {
     clearStationInfo();
     identifyFrequency(currentFrequency);
   }
@@ -1067,6 +1096,11 @@ static void doMenu(int16_t enc)
   menuIdx = wrap_range(menuIdx, enc, 0, LAST_ITEM(menu));
 }
 
+static void doMore(int16_t enc)
+{
+  moreIdx = wrap_range(moreIdx, enc, 0, LAST_ITEM(more));
+}
+
 static void clickMenu(int cmd, bool shortPress)
 {
   // No command yet
@@ -1075,14 +1109,16 @@ static void clickMenu(int cmd, bool shortPress)
   switch(cmd)
   {
     case MENU_STEP:     currentCmd = CMD_STEP;      break;
+    case MENU_TUNING:
+      tuneModeIdx = tuneModeIdx == TUNE_STATIONS ? TUNE_STEP : TUNE_STATIONS;
+      prefsRequestSave(SAVE_SETTINGS);
+      statusShow(tuneModeIdx == TUNE_STATIONS ? "Tune-Saved" : "Tune-Step");
+      break;
     case MENU_SEEK:     currentCmd = CMD_SEEK;      break;
-    case MENU_MODE:     currentCmd = CMD_MODE;      break;
-    case MENU_BW:       currentCmd = CMD_BANDWIDTH; break;
-    case MENU_AGC_ATT:  currentCmd = CMD_AGC;       break;
     case MENU_BAND:     currentCmd = CMD_BAND;      break;
+    case MENU_MORE:     currentCmd = CMD_MORE;      break;
     case MENU_SETTINGS: currentCmd = CMD_SETTINGS;  break;
     case MENU_NTP_NOW:  netSyncTimeOnce();           break;
-    case MENU_SQUELCH:  currentCmd = CMD_SQUELCH;   break;
     case MENU_VOLUME:   currentCmd = CMD_VOLUME;    break;
 
     case MENU_MEMORY:
@@ -1091,16 +1127,6 @@ static void clickMenu(int cmd, bool shortPress)
       newMemory.mode  = currentMode;
       newMemory.band  = bandIdx;
       doMemory(0);
-      break;
-
-    case MENU_SOFTMUTE:
-      // No soft mute in FM mode
-      if(currentMode!=FM) currentCmd = CMD_SOFTMUTE;
-      break;
-
-    case MENU_AVC:
-      // No AVC in FM mode
-      if(currentMode!=FM) currentCmd = CMD_AVC;
       break;
 
     case MENU_SCAN:
@@ -1115,6 +1141,24 @@ static void clickMenu(int cmd, bool shortPress)
       stationDeleteConfirm = false;
       currentCmd = CMD_STATIONS;
       break;
+  }
+}
+
+static void clickMore(int cmd)
+{
+  currentCmd = CMD_NONE;
+  switch(cmd)
+  {
+    case MORE_SQUELCH:  currentCmd = CMD_SQUELCH;   break;
+    case MORE_BW:       currentCmd = CMD_BANDWIDTH; break;
+    case MORE_AGC_ATT:  currentCmd = CMD_AGC;       break;
+    case MORE_AVC:
+      if(currentMode != FM) currentCmd = CMD_AVC;
+      break;
+    case MORE_SOFTMUTE:
+      if(currentMode != FM) currentCmd = CMD_SOFTMUTE;
+      break;
+    case MORE_MODE:     currentCmd = CMD_MODE;      break;
   }
 }
 
@@ -1154,6 +1198,10 @@ static void clickSettings(int cmd, bool shortPress)
       break;
     case MENU_WIFIMODE:   currentCmd = CMD_WIFIMODE;   break;
     case MENU_FM_REGION:  currentCmd = CMD_FM_REGION; break;
+    case MENU_KR_AREA:
+      if(FmRegionIdx == FM_REGION_KR) currentCmd = CMD_KR_AREA;
+      else drawMessage("Select KR first");
+      break;
     case MENU_FM_STEREO:  currentCmd = CMD_FM_STEREO; break;
     case MENU_ABOUT:      currentCmd = CMD_ABOUT;     break;
     case MENU_UPDATEFW:
@@ -1176,6 +1224,7 @@ bool doSideBar(uint16_t cmd, int16_t enc, int16_t enca)
   {
     // Menus and list-based options must take scrollDirection into account
     case CMD_MENU:       doMenu(scrollDirection * enc);break;
+    case CMD_MORE:       doMore(scrollDirection * enc);break;
     case CMD_MODE:       doMode(scrollDirection * enc);break;
     case CMD_STEP:       doStep(scrollDirection * enc);break;
     case CMD_AGC:        doAgc(enc);break;
@@ -1185,6 +1234,7 @@ bool doSideBar(uint16_t cmd, int16_t enc, int16_t enca)
     case CMD_BAND:       doBand(scrollDirection * enc);break;
     case CMD_AVC:        doAvc(enc);break;
     case CMD_FM_REGION:  doFmRegion(scrollDirection * enc);break;
+    case CMD_KR_AREA:    doKrArea(scrollDirection * enc);break;
     case CMD_FM_STEREO:  doFmStereo(scrollDirection * enc);break;
     case CMD_SETTINGS:   doSettings(scrollDirection * enc);break;
     case CMD_BRT:        doBrt(enca);break;
@@ -1219,6 +1269,7 @@ bool clickHandler(uint16_t cmd, bool shortPress)
   switch(cmd)
   {
     case CMD_MENU:     clickMenu(menuIdx, shortPress);break;
+    case CMD_MORE:     clickMore(moreIdx);break;
     case CMD_SETTINGS: clickSettings(settingsIdx, shortPress);break;
     case CMD_UPDATEFW: otaRequestLatest(updateFwIdx == 1);break;
     case CMD_MEMORY:   clickMemory(memoryIdx, shortPress);break;
@@ -1316,14 +1367,35 @@ static void drawMenu(int x, int y, int sx)
   int count = ITEM_COUNT(menu);
   for(int i=-2 ; i<3 ; i++)
   {
+    const char *label = menuLabel(abs((menuIdx+count+i)%count));
     if(i==0) {
-      drawZoomedMenu(menu[abs((menuIdx+count+i)%count)]);
+      drawZoomedMenu(label);
       spr.setTextColor(TH.menu_hl_text, TH.menu_hl_bg);
     } else {
       spr.setTextColor(TH.menu_item);
     }
     spr.setTextDatum(MC_DATUM);
-    spr.drawString(menu[abs((menuIdx+count+i)%count)], 40+x+(sx/2), 64+y+(i*16), FONT_SMALL);
+    spr.drawString(label, 40+x+(sx/2), 64+y+(i*16), FONT_SMALL);
+  }
+}
+
+static void drawMore(int x, int y, int sx)
+{
+  drawCommon(menu[MENU_MORE], x, y, sx, true);
+
+  int count = ITEM_COUNT(more);
+  for(int i=-2; i<3; ++i)
+  {
+    const char *label = more[(moreIdx + count + i) % count];
+    if(i == 0)
+    {
+      drawZoomedMenu(label);
+      spr.setTextColor(TH.menu_hl_text, TH.menu_hl_bg);
+    }
+    else spr.setTextColor(TH.menu_item);
+    spr.setTextDatum(MC_DATUM);
+    const lgfx::IFont *font = spr.textWidth(label, FONT_SMALL) > 70+sx ? FONT_DEFAULT : FONT_SMALL;
+    spr.drawString(label, 40+x+(sx/2), 64+y+(i*16), font);
   }
 }
 
@@ -1358,7 +1430,7 @@ static void drawSettings(int x, int y, int sx)
 
 static void drawMode(int x, int y, int sx)
 {
-  drawCommon(menu[MENU_MODE], x, y, sx, true);
+  drawCommon(more[MORE_MODE], x, y, sx, true);
 
   int count = ITEM_COUNT(bandModeDesc);
   for(int i=-2 ; i<3 ; i++)
@@ -1463,26 +1535,28 @@ static void drawStations(int x, int y, int sx)
   }
 
   if(stationDeleteConfirm)
-    snprintf(title, sizeof(title), "%s", stationsSelected() == 1 ? "Clear all?" : "Delete?");
+    snprintf(title, sizeof(title), "%s", stationsSelected() == STATION_CLEAR ? "Clear all?" : "Delete?");
   else
     snprintf(title, sizeof(title), "Stations %u", stationsCount());
   drawCommon(title, x, y, sx, true);
 
   spr.setTextDatum(MC_DATUM);
-  int count = stationsCount() + 2;
+  int count = stationsCount() + STATION_ACTION_COUNT;
   for(int i=-2; i<3; ++i)
   {
     int index = stationsSelected() + i;
     if(index < 0 || index >= count) continue;
     char frequency[16];
-    if(index == 0)
-      strlcpy(frequency, "Scan", sizeof(frequency));
-    else if(index == 1)
+    if(index == STATION_CLEAR_SCAN)
+      strlcpy(frequency, "Clear Scan", sizeof(frequency));
+    else if(index == STATION_APPEND_SCAN)
+      strlcpy(frequency, "Append Scan", sizeof(frequency));
+    else if(index == STATION_CLEAR)
       strlcpy(frequency, "Clear", sizeof(frequency));
     else if(currentMode == FM)
-      snprintf(frequency, sizeof(frequency), "%3.2f MHz", stationsFrequency(index - 2) / 100.0);
+      snprintf(frequency, sizeof(frequency), "%3.2f MHz", stationsFrequency(index - STATION_ACTION_COUNT) / 100.0);
     else
-      snprintf(frequency, sizeof(frequency), "%u kHz", stationsFrequency(index - 2));
+      snprintf(frequency, sizeof(frequency), "%u kHz", stationsFrequency(index - STATION_ACTION_COUNT));
 
     if(i == 0)
     {
@@ -1490,7 +1564,8 @@ static void drawStations(int x, int y, int sx)
       spr.setTextColor(TH.menu_hl_text, TH.menu_hl_bg);
     }
     else spr.setTextColor(TH.menu_item);
-    spr.drawString(frequency, 40+x+(sx/2), 64+y+(i*16), FONT_SMALL);
+    const lgfx::IFont *font = spr.textWidth(frequency, FONT_SMALL) > 70+sx ? FONT_DEFAULT : FONT_SMALL;
+    spr.drawString(frequency, 40+x+(sx/2), 64+y+(i*16), font);
   }
 }
 
@@ -1520,7 +1595,7 @@ static void drawBandwidth(int x, int y, int sx)
   int count = getLastBandwidth(currentMode) + 1;
   int idx   = bands[bandIdx].bandwidthIdx + count;
 
-  drawCommon(menu[MENU_BW], x, y, sx, true);
+  drawCommon(more[MORE_BW], x, y, sx, true);
 
   for(int i=-2 ; i<3 ; i++)
   {
@@ -1845,8 +1920,8 @@ static void drawVolume(int x, int y, int sx)
 
 static void drawAgc(int x, int y, int sx)
 {
-  drawCommon(menu[MENU_AGC_ATT], x, y, sx);
-  drawZoomedMenu(menu[MENU_AGC_ATT]);
+  drawCommon(more[MORE_AGC_ATT], x, y, sx);
+  drawZoomedMenu(more[MORE_AGC_ATT]);
   spr.setTextDatum(MC_DATUM);
   spr.setTextColor(TH.menu_param);
 
@@ -1869,8 +1944,8 @@ static void drawAgc(int x, int y, int sx)
 
 static void drawSquelch(int x, int y, int sx)
 {
-  drawCommon(menu[MENU_SQUELCH], x, y, sx);
-  drawZoomedMenu(menu[MENU_SQUELCH]);
+  drawCommon(more[MORE_SQUELCH], x, y, sx);
+  drawZoomedMenu(more[MORE_SQUELCH]);
   spr.setTextDatum(MC_DATUM);
 
   uint8_t squelchValue = currentSquelch[currentMode] & 0x7f;
@@ -1889,8 +1964,8 @@ static void drawSquelch(int x, int y, int sx)
 
 static void drawSoftMuteMaxAtt(int x, int y, int sx)
 {
-  drawCommon(menu[MENU_SOFTMUTE], x, y, sx);
-  drawZoomedMenu(menu[MENU_SOFTMUTE]);
+  drawCommon(more[MORE_SOFTMUTE], x, y, sx);
+  drawZoomedMenu(more[MORE_SOFTMUTE]);
   spr.setTextDatum(MC_DATUM);
 
   spr.setTextColor(TH.menu_param);
@@ -1924,8 +1999,8 @@ static void drawCal(int x, int y, int sx)
 
 static void drawAvc(int x, int y, int sx)
 {
-  drawCommon(menu[MENU_AVC], x, y, sx);
-  drawZoomedMenu(menu[MENU_AVC]);
+  drawCommon(more[MORE_AVC], x, y, sx);
+  drawZoomedMenu(more[MORE_AVC]);
   spr.setTextDatum(MC_DATUM);
 
   spr.setTextColor(TH.menu_param);
@@ -1961,6 +2036,29 @@ static void drawFmRegion(int x, int y, int sx)
 
     spr.setTextDatum(MC_DATUM);
     spr.drawString(fmRegions[abs((FmRegionIdx+count+i)%count)].desc, 40+x+(sx/2), 64+y+(i*16), FONT_SMALL);
+  }
+}
+
+static void drawKrArea(int x, int y, int sx)
+{
+  drawCommon(settings[MENU_KR_AREA], x, y, sx, true);
+
+  uint8_t manual = krFmManualRegion();
+  int selected = manual == KR_FM_AUTO ? 0 : manual + 1;
+  int count = krFmRegionCount() + 1;
+  for(int i=-2; i<3; ++i)
+  {
+    int index = (selected + count + i) % count;
+    const char *label = index ? krFmRegionLabel(index - 1) : "Auto";
+    if(i == 0)
+    {
+      drawZoomedMenu(label);
+      spr.setTextColor(TH.menu_hl_text, TH.menu_hl_bg);
+    }
+    else spr.setTextColor(TH.menu_item);
+    spr.setTextDatum(MC_DATUM);
+    const lgfx::IFont *font = spr.textWidth(label, FONT_SMALL) > 70+sx ? FONT_DEFAULT : FONT_SMALL;
+    spr.drawString(label, 40+x+(sx/2), 64+y+(i*16), font);
   }
 }
 
@@ -2125,6 +2223,7 @@ void drawSideBar(uint16_t cmd, int x, int y, int sx)
   switch(cmd)
   {
     case CMD_MENU:       drawMenu(x, y, sx);       break;
+    case CMD_MORE:       drawMore(x, y, sx);       break;
     case CMD_SETTINGS:   drawSettings(x, y, sx);   break;
     case CMD_MODE:       drawMode(x, y, sx);       break;
     case CMD_STEP:       drawStep(x, y, sx);       break;
@@ -2141,6 +2240,7 @@ void drawSideBar(uint16_t cmd, int x, int y, int sx)
     case CMD_CAL:        drawCal(x, y, sx);        break;
     case CMD_AVC:        drawAvc(x, y, sx);        break;
     case CMD_FM_REGION:  drawFmRegion(x, y, sx);   break;
+    case CMD_KR_AREA:    drawKrArea(x, y, sx);     break;
     case CMD_FM_STEREO:  drawFmStereo(x, y, sx);   break;
     case CMD_BRT:        drawBrt(x, y, sx);        break;
     case CMD_RDS:        drawRDSMode(x, y, sx);    break;

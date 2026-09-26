@@ -29,7 +29,8 @@
 #define CMD_SEEK       0x1A00 // |
 #define CMD_SCAN       0x1B00 // |
 #define CMD_SQUELCH    0x1C00 // |
-#define CMD_STATIONS   0x1D00 //-+ Saved stations in the current band
+#define CMD_STATIONS   0x1D00 // | Saved stations in the current band
+#define CMD_MORE       0x1E00 //-+ More submenu
 #define CMD_SETTINGS   0x2000 //-SETTINGS MODE starts here
 #define CMD_BRT        0x2100 // |
 #define CMD_CAL        0x2200 // |
@@ -50,7 +51,8 @@
 #define CMD_DATETIME   0x3100 // |
 #define CMD_UPDATEFW   0x3200 // |
 #define CMD_FM_STEREO  0x3300 // |
-#define CMD_ABOUT      0x3400 //-+
+#define CMD_KR_AREA    0x3400 // |
+#define CMD_ABOUT      0x3500 //-+
 
 // UI Layouts
 #define UI_DEFAULT  0
@@ -59,6 +61,10 @@
 // Seek modes
 #define SEEK_DEFAULT  0
 #define SEEK_SCHEDULE 1
+
+// VFO tuning modes
+#define TUNE_STATIONS 0
+#define TUNE_STEP     1
 
 //
 // Data Types
@@ -93,6 +99,7 @@ extern const UTCOffset utcOffsets[];
 extern const char *bandModeDesc[];
 extern const FMRegion fmRegions[];
 extern int bandIdx;
+extern uint8_t tuneModeIdx;
 
 // These are menu commands
 static inline bool isMenuMode(uint16_t cmd)

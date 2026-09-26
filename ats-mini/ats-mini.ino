@@ -7,6 +7,7 @@
 #include "Rotary.h"
 #include "Button.h"
 #include "Menu.h"
+#include "Stations.h"
 #include "Draw.h"
 #include "Storage.h"
 #include "Themes.h"
@@ -615,6 +616,20 @@ bool doSeek(int16_t enc, int16_t enca)
 //
 bool doTune(int16_t enc)
 {
+  if(currentCmd == CMD_NONE && tuneModeIdx == TUNE_STATIONS)
+  {
+    uint16_t frequency = stationsNextFrequency(currentFrequency, enc);
+    if(!frequency)
+    {
+      statusShow("No saved stations");
+      return true;
+    }
+    updateFrequency(frequency, true);
+    clearStationInfo();
+    identifyFrequency(currentFrequency + currentBFO / 1000);
+    return true;
+  }
+
   //
   // SSB tuning
   //
@@ -857,6 +872,10 @@ void loop()
       switch(currentCmd)
       {
         case CMD_NONE:
+          // Saved stations advance one entry per encoder detent.
+          needRedraw |= doTune(tuneModeIdx == TUNE_STATIONS ? encCount : encCountAccel);
+          prefsRequestSave(SAVE_CUR_BAND);
+          break;
         case CMD_SCAN:
           // Tuning
           needRedraw |= doTune(encCountAccel);

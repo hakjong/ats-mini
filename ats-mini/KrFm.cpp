@@ -11,8 +11,29 @@ struct KrFmEntry
 #include "KrFmData.inc"
 
 static uint16_t regionScores[ITEM_COUNT(krRegions)] = {};
-static uint8_t homeRegion = 255;
+static uint8_t homeRegion = KR_FM_AUTO;
+static uint8_t manualRegion = KR_FM_AUTO;
 static char identifiedName[64];
+
+static const char *const regionLabels[] = {
+  "Seoul Area", "Chuncheon", "Wonju", "Gangneung", "Donghae+",
+  "Daejeon", "Cheongju", "Chungju", "Jeonju", "Namwon",
+  "Gwangju", "Mokpo", "Yeosu+", "Daegu", "Andong", "Pohang",
+  "Busan", "Ulsan", "Changwon", "Jinju+", "Jeju", "Seogwipo",
+};
+
+static_assert(ITEM_COUNT(regionLabels) == ITEM_COUNT(krRegions), "KR FM region labels must match the data");
+
+uint8_t krFmRegionCount() { return ITEM_COUNT(krRegions); }
+const char *krFmRegionLabel(uint8_t region)
+{
+  return region < ITEM_COUNT(regionLabels) ? regionLabels[region] : "Auto";
+}
+uint8_t krFmManualRegion() { return manualRegion; }
+void krFmSetManualRegion(uint8_t region)
+{
+  manualRegion = region < ITEM_COUNT(krRegions) ? region : KR_FM_AUTO;
+}
 
 // Each mask includes its own area and neighboring areas. The order follows
 // krRegions; boundaries are deliberately conservative for name lookup.
@@ -51,12 +72,12 @@ static uint32_t regionMask(uint16_t frequency)
   return mask;
 }
 
-void krFmSetStations(const uint16_t *frequencies, uint8_t count)
+void krFmSetStations(const uint16_t *frequencies, uint16_t count)
 {
   memset(regionScores, 0, sizeof(regionScores));
-  homeRegion = 255;
-  uint8_t support[ITEM_COUNT(krRegions)] = {};
-  for(uint8_t i = 0; i < count; ++i)
+  homeRegion = KR_FM_AUTO;
+  uint16_t support[ITEM_COUNT(krRegions)] = {};
+  for(uint16_t i = 0; i < count; ++i)
   {
     uint32_t mask = regionMask(frequencies[i]);
     if(!mask) continue;
@@ -85,15 +106,18 @@ void krFmSetStations(const uint16_t *frequencies, uint8_t count)
 
 const char *krFmName(uint16_t frequency)
 {
-  if(homeRegion == 255) return nullptr;
+  uint8_t activeRegion = manualRegion == KR_FM_AUTO ? homeRegion : manualRegion;
+  if(activeRegion == KR_FM_AUTO) return nullptr;
   const KrFmEntry *best = nullptr;
   uint16_t bestScore = 0, secondScore = 0;
   uint8_t matches = 0;
   for(const KrFmEntry &entry : krFmEntries)
   {
-    if(entry.frequency != frequency || !(nearbyRegions[homeRegion] & (1UL << entry.region))) continue;
+    if(entry.frequency != frequency || !(nearbyRegions[activeRegion] & (1UL << entry.region))) continue;
     ++matches;
-    uint16_t score = regionScores[entry.region];
+    // A manually selected area's own transmitter wins over neighboring
+    // areas sharing the same frequency; scan scores decide other ties.
+    uint16_t score = manualRegion != KR_FM_AUTO && entry.region == activeRegion ? UINT16_MAX : regionScores[entry.region];
     if(!best || score > bestScore)
     {
       secondScore = bestScore;

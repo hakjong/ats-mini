@@ -3,7 +3,13 @@
 
 #include <stdint.h>
 
-void krFmSetStations(const uint16_t *frequencies, uint8_t count);
+#define KR_FM_AUTO 255
+
+void krFmSetStations(const uint16_t *frequencies, uint16_t count);
+uint8_t krFmRegionCount();
+const char *krFmRegionLabel(uint8_t region);
+uint8_t krFmManualRegion();
+void krFmSetManualRegion(uint8_t region);
 const char *krFmName(uint16_t frequency);
 
 #endif

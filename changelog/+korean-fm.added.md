@@ -1,1 +1,1 @@
-Show Korean FM station names from the Korean radio frequency list when FM Region is KR. Use saved Stations scan results to identify the receiving area, show names from that area and adjacent areas, and suppress distant or ambiguous matches.
+Show Korean FM station names from the Korean radio frequency list when FM Region is KR. Use saved Stations scan results to identify the receiving area, show names from that area and adjacent areas, and suppress distant or ambiguous matches. KR Area in Settings also allows manual area selection; Clear Scan or Clear resets it to Auto.
