@@ -73,6 +73,23 @@ Band bands[] =
   {"NIGHT", SW_BAND_TYPE, AM,   5000, 12000,  6000, 1, 4, 0, 0},
 };
 
+// Menu order only. Keep bands[] indices stable for saved bands, memories,
+// and per-band station lists.
+static const uint8_t bandMenuOrder[] = {
+  0, 17, 16, 15, // VHF, MW1, MW2, MW3
+  1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, // ALL and AM shortwave
+  18, 19, 20, 21, 22, 23, 24, 25, 26, // Amateur bands
+  27, 28, 29, 30, // CB, DAY, TWIL, NIGHT
+};
+static_assert(ITEM_COUNT(bandMenuOrder) == ITEM_COUNT(bands), "Band menu order must include every band");
+
+static uint8_t bandMenuPosition()
+{
+  for(uint8_t i = 0; i < ITEM_COUNT(bandMenuOrder); ++i)
+    if(bandMenuOrder[i] == bandIdx) return i;
+  return 0;
+}
+
 int getTotalBands() { return(ITEM_COUNT(bands)); }
 Band *getCurrentBand() { return(&bands[bandIdx]); }
 
@@ -1026,7 +1043,7 @@ void doBand(int16_t enc)
   bands[bandIdx].bandMode = currentMode;
 
   // Change band
-  bandIdx = wrap_range(bandIdx, enc, 0, LAST_ITEM(bands));
+  bandIdx = bandMenuOrder[wrap_range(bandMenuPosition(), enc, 0, LAST_ITEM(bandMenuOrder))];
 
   // Enable the new band
   selectBand(bandIdx);
@@ -1482,17 +1499,19 @@ static void drawBand(int x, int y, int sx)
   drawCommon(menu[MENU_BAND], x, y, sx, true);
 
   int count = ITEM_COUNT(bands);
+  int position = bandMenuPosition();
   for(int i=-2 ; i<3 ; i++)
   {
+    const char *name = bands[bandMenuOrder[(position + count + i) % count]].bandName;
     if(i==0) {
-      drawZoomedMenu(bands[abs((bandIdx+count+i)%count)].bandName);
+      drawZoomedMenu(name);
       spr.setTextColor(TH.menu_hl_text, TH.menu_hl_bg);
     } else {
       spr.setTextColor(TH.menu_item);
     }
 
     spr.setTextDatum(MC_DATUM);
-    spr.drawString(bands[abs((bandIdx+count+i)%count)].bandName, 40+x+(sx/2), 64+y+(i*16), FONT_SMALL);
+    spr.drawString(name, 40+x+(sx/2), 64+y+(i*16), FONT_SMALL);
   }
 }
 

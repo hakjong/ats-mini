@@ -153,6 +153,9 @@ To reset the receiver settings (current band, frequency, favorite stations, down
 | Name  | Min frequency | Max frequency | Default mode |
 |-------|---------------|---------------|--------------|
 | VHF  | 64 MHz        | 108 MHz       | FM           |
+| MW1  | 150 kHz       | 1800 kHz      | AM           |
+| MW2  | 495 kHz       | 1701 kHz      | AM           |
+| MW3  | 1700 kHz      | 3500 kHz      | AM           |
 | ALL  | 150 kHz       | 30000 kHz     | AM           |
 | 11M  | 25600 kHz     | 26100 kHz     | AM           |
 | 13M  | 21500 kHz     | 21900 kHz     | AM           |
@@ -167,9 +170,6 @@ To reset the receiver settings (current band, frequency, favorite stations, down
 | 60M  | 4000 kHz      | 5100 kHz      | AM           |
 | 75M  | 3500 kHz      | 4000 kHz      | AM           |
 | 90M  | 3000 kHz      | 3500 kHz      | AM           |
-| MW3  | 1700 kHz      | 3500 kHz      | AM           |
-| MW2  | 495 kHz       | 1701 kHz      | AM           |
-| MW1  | 150 kHz       | 1800 kHz      | AM           |
 | 160M | 1800 kHz      | 2000 kHz      | LSB          |
 | 80M  | 3500 kHz      | 4000 kHz      | LSB          |
 | 40M  | 7000 kHz      | 7300 kHz      | LSB          |
