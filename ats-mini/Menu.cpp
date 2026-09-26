@@ -166,8 +166,8 @@ static const char *const more[] = {
 #define MENU_TCPMODE     16
 #define MENU_BLEMODE     17
 #define MENU_WIFIMODE    18
-#define MENU_UPDATEFW    19
-#define MENU_ABOUT       20
+// #define MENU_UPDATEFW    19
+#define MENU_ABOUT       19
 
 
 static uint8_t updateFwIdx = 0;
@@ -196,7 +196,7 @@ static const char *settings[] =
   "TCP Port",
   "Bluetooth",
   "Wi-Fi",
-  "Update FW",
+  // "Update FW",
   "About",
 };
 
@@ -1214,10 +1214,10 @@ static void clickSettings(int cmd, bool shortPress)
       break;
     case MENU_FM_STEREO:  currentCmd = CMD_FM_STEREO; break;
     case MENU_ABOUT:      currentCmd = CMD_ABOUT;     break;
-    case MENU_UPDATEFW:
-      updateFwIdx = 0;
-      currentCmd = CMD_UPDATEFW;
-      break;
+    // case MENU_UPDATEFW:
+    //   updateFwIdx = 0;
+    //   currentCmd = CMD_UPDATEFW;
+    //   break;
 
     case MENU_LOADEIBI:
       eibiLoadSchedule();
@@ -1751,7 +1751,7 @@ static void drawBleMode(int x, int y, int sx)
 
 static void drawUpdateFW(int x, int y, int sx)
 {
-  drawCommon(settings[MENU_UPDATEFW], x, y, sx, true);
+  drawCommon("Update FW", x, y, sx, true);
 
   for(int i=0 ; i<ITEM_COUNT(updateFwActions) ; i++)
   {
