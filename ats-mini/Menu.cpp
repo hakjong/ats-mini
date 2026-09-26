@@ -101,15 +101,13 @@ Band *getCurrentBand() { return(&bands[bandIdx]); }
 
 #define MENU_BAND         0
 #define MENU_VOLUME       1
-#define MENU_STEP         2
-#define MENU_TUNING       3
-#define MENU_SEEK         4
-#define MENU_SCAN         5
-#define MENU_STATIONS     6
-#define MENU_MEMORY       7
+#define MENU_TUNING       2
+#define MENU_SEEK         3
+#define MENU_SCAN         4
+#define MENU_STATIONS     5
+#define MENU_MEMORY       6
+#define MENU_SETTINGS     7
 #define MENU_MORE         8
-#define MENU_SETTINGS     9
-#define MENU_NTP_NOW     10
 
 int8_t menuIdx = MENU_VOLUME;
 uint8_t tuneModeIdx = TUNE_STATIONS;
@@ -118,15 +116,13 @@ static const char *menu[] =
 {
   "Band",
   "Volume",
-  "Step",
   "Tune-Saved",
   "Seek",
   "Scan",
   "Stations",
   "Memory",
-  "More",
   "Settings",
-  "NTP Now",
+  "---More---",
 };
 
 static const char *menuLabel(int index)
@@ -142,10 +138,12 @@ static const char *menuLabel(int index)
 #define MORE_AVC       3
 #define MORE_SOFTMUTE  4
 #define MORE_MODE      5
+#define MORE_STEP      6
+#define MORE_NTP_NOW   7
 
 static int8_t moreIdx = MORE_SQUELCH;
 static const char *const more[] = {
-  "Squelch", "Bandwidth", "AGC/ATTN", "AVC", "SoftMute", "Mode",
+  "Squelch", "Bandwidth", "AGC/ATTN", "AVC", "SoftMute", "Mode", "Step", "NTP Now",
 };
 
 //
@@ -1108,7 +1106,6 @@ static void clickMenu(int cmd, bool shortPress)
 
   switch(cmd)
   {
-    case MENU_STEP:     currentCmd = CMD_STEP;      break;
     case MENU_TUNING:
       tuneModeIdx = tuneModeIdx == TUNE_STATIONS ? TUNE_STEP : TUNE_STATIONS;
       prefsRequestSave(SAVE_SETTINGS);
@@ -1118,7 +1115,6 @@ static void clickMenu(int cmd, bool shortPress)
     case MENU_BAND:     currentCmd = CMD_BAND;      break;
     case MENU_MORE:     currentCmd = CMD_MORE;      break;
     case MENU_SETTINGS: currentCmd = CMD_SETTINGS;  break;
-    case MENU_NTP_NOW:  netSyncTimeOnce();           break;
     case MENU_VOLUME:   currentCmd = CMD_VOLUME;    break;
 
     case MENU_MEMORY:
@@ -1159,6 +1155,8 @@ static void clickMore(int cmd)
       if(currentMode != FM) currentCmd = CMD_SOFTMUTE;
       break;
     case MORE_MODE:     currentCmd = CMD_MODE;      break;
+    case MORE_STEP:     currentCmd = CMD_STEP;      break;
+    case MORE_NTP_NOW:  netSyncTimeOnce();           break;
   }
 }
 
@@ -1453,7 +1451,7 @@ static void drawStep(int x, int y, int sx)
   int count = getLastStep(currentMode) + 1;
   int idx   = bands[bandIdx].currentStepIdx + count;
 
-  drawCommon(menu[MENU_STEP], x, y, sx, true);
+  drawCommon(more[MORE_STEP], x, y, sx, true);
 
   for(int i=-2 ; i<3 ; i++)
   {

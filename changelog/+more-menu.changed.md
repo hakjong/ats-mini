@@ -1,1 +1,1 @@
-Moved Squelch, Bandwidth, AGC/ATTN, AVC, SoftMute, and Mode from the main menu into a new More submenu.
+Moved Squelch, Bandwidth, AGC/ATTN, AVC, SoftMute, Mode, Step, and NTP Now from the main menu into the ---More--- submenu, placed below Settings.

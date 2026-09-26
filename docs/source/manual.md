@@ -53,15 +53,13 @@ The menu can be invoked by clicking the encoder button and is closed automatical
 
 * **Band** - List of [Bands](#bands-table).
 * **Volume** - 0 (silent) ... 63 (max). The headphone volume level can be low (compared to the built-in speaker) due to limitation of the initial hardware design. Use short press to mute/unmute.
-* **Step** - Tuning step (not every step is available on every band and mode).
 * **Tune-Saved / Tune-Step** - Toggle regular encoder tuning between the current band's saved Stations (default) and step-based frequency tuning. Saved tuning wraps at the ends of the sorted list; if the list is empty, rotating does not change frequency. The choice is saved across power cycles. Seek, Scan, and direct frequency input keep their existing behavior.
 * **Seek** - Seek up or down on AM/FM, normal tuning on LSB/USB (hardware seek function is not supported by SI4732 on SSB). Rotate or click the encoder to stop the seek. Use short press to switch between the seek and [schedule](#schedule) modes. Use press and rotate for manual fine tuning.
 * **Scan** - Scan a frequency range and plot the RSSI (S) and SNR (N) graphs (unfortunately, these metrics are almost meaningless in SSB modes due to SI4732 patch limitations). Both graphs are normalized to 0.0 - 1.0 range. While the Scan mode is active, short press the encoder for 0.5 seconds to rescan. To abort a running scan process click or rotate the encoder.
 * **Stations** - The current band's list starts with **Clear Scan**, **Append Scan**, and **Clear**, followed by saved frequencies in ascending order. Rotate the encoder to browse and tune saved frequencies. Short press (>0.5 sec) on Clear Scan to replace the list with frequencies found in a whole-band scan, or on Append Scan to add new frequencies while keeping existing ones. The left panel shows the count and five most recently added frequencies during scanning. Click or rotate to stop a running scan and save the frequencies found so far. Short press on Clear or a saved frequency, then short press again to confirm deletion; click or rotate to cancel. Each band's list is saved in flash and survives power off. Scanning uses the receiver's AM/FM seek function and is unavailable in LSB/USB modes; reception and antenna conditions affect which stations are found. The list holds up to 256 stations per band; when full, existing frequencies are kept and new ones are skipped. Saved lists from firmware versions using the 128-station format must be rescanned. With FM Region set to KR, saved FM stations identify the receiving area automatically. Clear Scan or Clear returns any manually selected KR Area to Auto, so a subsequent scan uses automatic identification. Guide names are shown for that area and adjacent areas only. In Auto, if the scan cannot establish an area or distinguish broadcasters sharing a frequency, no guide name is shown. Received RDS names still take priority.
 * **Memory** - 99 slots to store favorite frequencies. Short press (>0.5 sec) on an empty slot to store the current frequency, short press to erase a slot, switch between stored slots by rotating the encoder, click to exit the menu. It is also possible to edit the memory slots via [remote control](remote.md) or via the [web based tool](memory.md) in Google Chrome.
-* **More** - Opens the receiver controls listed below.
 * **Settings** - Settings submenu.
-* **NTP Now** - With Wi-Fi set to Off, close the menu, temporarily connect to a saved network, synchronize the clock, and turn Wi-Fi off again. The receiver remains usable while it connects and synchronizes. Press or rotate the encoder to cancel. The saved Wi-Fi mode does not change.
+* **---More---** - Opens the receiver controls listed below.
 
 ## More submenu
 
@@ -71,6 +69,8 @@ The menu can be invoked by clicking the encoder button and is closed automatical
 * **AVC** - Sets the maximum gain for automatic volume control (not applicable to FM mode).
 * **SoftMute** - Sets softmute max attenuation (only applicable to AM/SSB).
 * **Mode** - FM (only available on the VHF band); LSB, USB, AM (available on other bands). The receiver doesn't support the NFM mode (on any band, including the CB) due to limitations of the SI4732 chip.
+* **Step** - Tuning step (not every step is available on every band and mode).
+* **NTP Now** - With Wi-Fi set to Off, close the menu, temporarily connect to a saved network, synchronize the clock, and turn Wi-Fi off again. The receiver remains usable while it connects and synchronizes. Press or rotate the encoder to cancel. The saved Wi-Fi mode does not change.
 
 ## Settings menu
 
