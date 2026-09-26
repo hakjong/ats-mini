@@ -116,7 +116,7 @@ static const char *menu[] =
 {
   "Band",
   "Volume",
-  "Tune-Saved",
+  "Tune",
   "Seek",
   "Scan",
   "Stations",
@@ -125,11 +125,8 @@ static const char *menu[] =
   "---More---",
 };
 
-static const char *menuLabel(int index)
-{
-  if(index == MENU_TUNING) return tuneModeIdx == TUNE_STATIONS ? "Tune-Saved" : "Tune-Step";
-  return menu[index];
-}
+static uint8_t tuneMenuIdx = TUNE_STATIONS;
+static const char *const tuneModes[] = { "Saved", "Step" };
 
 // More submenu
 #define MORE_SQUELCH   0
@@ -1099,6 +1096,11 @@ static void doMore(int16_t enc)
   moreIdx = wrap_range(moreIdx, enc, 0, LAST_ITEM(more));
 }
 
+static void doTuneMenu(int16_t enc)
+{
+  tuneMenuIdx = wrap_range(tuneMenuIdx, enc, 0, LAST_ITEM(tuneModes));
+}
+
 static void clickMenu(int cmd, bool shortPress)
 {
   // No command yet
@@ -1107,9 +1109,8 @@ static void clickMenu(int cmd, bool shortPress)
   switch(cmd)
   {
     case MENU_TUNING:
-      tuneModeIdx = tuneModeIdx == TUNE_STATIONS ? TUNE_STEP : TUNE_STATIONS;
-      prefsRequestSave(SAVE_SETTINGS);
-      statusShow(tuneModeIdx == TUNE_STATIONS ? "Tune-Saved" : "Tune-Step");
+      tuneMenuIdx = tuneModeIdx;
+      currentCmd = CMD_TUNING;
       break;
     case MENU_SEEK:     currentCmd = CMD_SEEK;      break;
     case MENU_BAND:     currentCmd = CMD_BAND;      break;
@@ -1138,6 +1139,17 @@ static void clickMenu(int cmd, bool shortPress)
       currentCmd = CMD_STATIONS;
       break;
   }
+}
+
+static void clickTuneMenu()
+{
+  currentCmd = CMD_NONE;
+  if(tuneModeIdx != tuneMenuIdx)
+  {
+    tuneModeIdx = tuneMenuIdx;
+    prefsRequestSave(SAVE_SETTINGS);
+  }
+  statusShow(tuneModes[tuneModeIdx]);
 }
 
 static void clickMore(int cmd)
@@ -1222,6 +1234,7 @@ bool doSideBar(uint16_t cmd, int16_t enc, int16_t enca)
   {
     // Menus and list-based options must take scrollDirection into account
     case CMD_MENU:       doMenu(scrollDirection * enc);break;
+    case CMD_TUNING:     doTuneMenu(scrollDirection * enc);break;
     case CMD_MORE:       doMore(scrollDirection * enc);break;
     case CMD_MODE:       doMode(scrollDirection * enc);break;
     case CMD_STEP:       doStep(scrollDirection * enc);break;
@@ -1267,6 +1280,7 @@ bool clickHandler(uint16_t cmd, bool shortPress)
   switch(cmd)
   {
     case CMD_MENU:     clickMenu(menuIdx, shortPress);break;
+    case CMD_TUNING:   clickTuneMenu();break;
     case CMD_MORE:     clickMore(moreIdx);break;
     case CMD_SETTINGS: clickSettings(settingsIdx, shortPress);break;
     case CMD_UPDATEFW: otaRequestLatest(updateFwIdx == 1);break;
@@ -1285,6 +1299,24 @@ bool clickHandler(uint16_t cmd, bool shortPress)
 
   // Encoder input handled
   return(true);
+}
+
+bool menuHoldCloses(uint16_t cmd)
+{
+  // These screens assign an action to a 0.5-2 second press.
+  switch(cmd)
+  {
+    case CMD_VOLUME:
+    case CMD_SQUELCH:
+    case CMD_SEEK:
+    case CMD_SCAN:
+    case CMD_STATIONS:
+    case CMD_MEMORY:
+    case CMD_FREQ:
+    case CMD_DATETIME:
+      return false;
+  }
+  return isMenuMode(cmd) || isSettingsMode(cmd) || cmd == CMD_ABOUT;
 }
 
 //
@@ -1365,7 +1397,7 @@ static void drawMenu(int x, int y, int sx)
   int count = ITEM_COUNT(menu);
   for(int i=-2 ; i<3 ; i++)
   {
-    const char *label = menuLabel(abs((menuIdx+count+i)%count));
+    const char *label = menu[abs((menuIdx+count+i)%count)];
     if(i==0) {
       drawZoomedMenu(label);
       spr.setTextColor(TH.menu_hl_text, TH.menu_hl_bg);
@@ -1374,6 +1406,27 @@ static void drawMenu(int x, int y, int sx)
     }
     spr.setTextDatum(MC_DATUM);
     spr.drawString(label, 40+x+(sx/2), 64+y+(i*16), FONT_SMALL);
+  }
+}
+
+static void drawTuneMenu(int x, int y, int sx)
+{
+  drawCommon(menu[MENU_TUNING], x, y, sx, true);
+
+  for(int i=-2; i<3; ++i)
+  {
+    int index = tuneMenuIdx + i;
+    if(index < 0 || index >= ITEM_COUNT(tuneModes)) continue;
+    const char *label = tuneModes[index];
+    if(i == 0)
+    {
+      drawZoomedMenu(label);
+      spr.setTextColor(TH.menu_hl_text, TH.menu_hl_bg);
+    }
+    else spr.setTextColor(TH.menu_item);
+    spr.setTextDatum(MC_DATUM);
+    const lgfx::IFont *font = spr.textWidth(label, FONT_SMALL) > 70+sx ? FONT_DEFAULT : FONT_SMALL;
+    spr.drawString(label, 40+x+(sx/2), 64+y+(i*16), font);
   }
 }
 
@@ -2221,6 +2274,7 @@ void drawSideBar(uint16_t cmd, int x, int y, int sx)
   switch(cmd)
   {
     case CMD_MENU:       drawMenu(x, y, sx);       break;
+    case CMD_TUNING:     drawTuneMenu(x, y, sx);   break;
     case CMD_MORE:       drawMore(x, y, sx);       break;
     case CMD_SETTINGS:   drawSettings(x, y, sx);   break;
     case CMD_MODE:       drawMode(x, y, sx);       break;

@@ -942,6 +942,11 @@ void loop()
           needRedraw = true;
         }
       }
+      else if(pb1st.wasShortPressed && menuHoldCloses(currentCmd))
+      {
+        currentCmd = CMD_NONE;
+        needRedraw = true;
+      }
       else if(clickHandler(currentCmd, pb1st.wasShortPressed))
       {
         // Command handled, redraw screen

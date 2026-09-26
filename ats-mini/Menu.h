@@ -30,7 +30,8 @@
 #define CMD_SCAN       0x1B00 // |
 #define CMD_SQUELCH    0x1C00 // |
 #define CMD_STATIONS   0x1D00 // | Saved stations in the current band
-#define CMD_MORE       0x1E00 //-+ More submenu
+#define CMD_MORE       0x1E00 // | More submenu
+#define CMD_TUNING     0x1F00 //-+ Tuning mode submenu
 #define CMD_SETTINGS   0x2000 //-SETTINGS MODE starts here
 #define CMD_BRT        0x2100 // |
 #define CMD_CAL        0x2200 // |
@@ -116,6 +117,7 @@ static inline bool isSettingsMode(uint16_t cmd)
 uint8_t seekMode(bool toggle = false);
 void drawSideBar(uint16_t cmd, int x, int y, int sx);
 bool doSideBar(uint16_t cmd, int16_t enc, int16_t enca);
+bool menuHoldCloses(uint16_t cmd);
 void doSelectDigit(int16_t enc);
 bool clickHandler(uint16_t cmd, bool shortPress);
 void selectBand(uint8_t idx, bool drawLoadingSSB = true);
