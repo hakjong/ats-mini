@@ -108,7 +108,7 @@ There are a couple of modes:
 * **AP Only** - Access Point mode. The receiver creates its own access point called `ATS-Mini` and starts the web server on <http://10.1.1.1>.
 * **AP+Connect** - Access Point mode + try to connect to one of the three configured access points. If the connection succeeds, the receiver will synchronize the time every 5 minutes and start the web server on both <http://10.1.1.1> and a dynamic IP address it got from the configured access point.
 * **Connect** - try to connect to one of the three configured access points, start the web server on a dynamic IP, then synchronize the time every 5 minutes.
-* **Sync Only** - same as Connect, but Wi-Fi will be disabled after a successful time synchronization.
+* **Sync Only** - connect once to synchronize time, then turn Wi-Fi off. It runs at startup or when selected, but does not reconnect after waking from CPU Sleep.
 
 Initial configuration:
 

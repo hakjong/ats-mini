@@ -269,8 +269,8 @@ bool sleepOn(int x)
       pinMode(ENCODER_PUSH_BUTTON, INPUT_PULLUP);
       if(muteOn(MUTE_SQUELCH) && !muteOn(MUTE_MAIN)) muteOn(MUTE_FORCE, true);
       sleepOn(false);
-      // Enable WiFi
-      netInit(wifiModeIdx);
+      // Sync Only runs at startup or when selected, not after CPU sleep.
+      if(wifiModeIdx != NET_SYNC) netInit(wifiModeIdx);
     }
   }
   else if((x==0) && sleep_on)
