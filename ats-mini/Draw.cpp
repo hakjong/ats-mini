@@ -214,7 +214,7 @@ void drawFrequency(uint32_t freq, int x, int y, int ux, int uy, uint8_t hl)
     {
       spr.setTextColor(TH.funit_text);
       spr.setTextDatum(MR_DATUM);
-      spr.drawString(name, 319, uy - 18, FONT_SMALL);
+      spr.drawString(name, 315, uy - 18, FONT_SMALL);
     }
     spr.setTextDatum(ML_DATUM);
     spr.setTextColor(TH.funit_text);
