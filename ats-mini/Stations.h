@@ -3,14 +3,16 @@
 
 #include <stdint.h>
 
-#define STATION_CLEAR_SCAN   0
-#define STATION_APPEND_SCAN  1
-#define STATION_CLEAR        2
-#define STATION_ACTION_COUNT 3
+#define STATION_ADD_CURRENT  0
+#define STATION_CLEAR_SCAN   1
+#define STATION_APPEND_SCAN  2
+#define STATION_CLEAR        3
+#define STATION_ACTION_COUNT 4
 
 void stationsLoad(uint8_t band);
 bool stationsScan(bool append);
 void stationsSelect(int16_t direction);
+bool stationsAddCurrent();
 bool stationsClear();
 bool stationsDeleteSelected();
 uint16_t stationsCount();

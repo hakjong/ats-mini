@@ -147,6 +147,22 @@ bool stationsClear()
   return true;
 }
 
+bool stationsAddCurrent()
+{
+  stationsLoad(bandIdx);
+  uint16_t index = 0;
+  while(index < stations.count && stations.frequencies[index] < currentFrequency) ++index;
+  if(index < stations.count && stations.frequencies[index] == currentFrequency) return true;
+  if(stations.count == STATION_LIMIT) return false;
+
+  SavedStations updated = stations;
+  for(uint16_t i = updated.count; i > index; --i)
+    updated.frequencies[i] = updated.frequencies[i - 1];
+  updated.frequencies[index] = currentFrequency;
+  ++updated.count;
+  return saveStations(updated);
+}
+
 bool stationsDeleteSelected()
 {
   stationsLoad(bandIdx);

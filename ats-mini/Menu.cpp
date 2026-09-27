@@ -116,17 +116,17 @@ static const char *menu[] =
 {
   "Band",
   "Volume",
-  "Tune",
+  "TuneMode",
   "Seek",
   "Scan",
-  "Stations",
+  "ATS",
   "Memory",
   "Settings",
   "---More---",
 };
 
 static uint8_t tuneMenuIdx = TUNE_STATIONS;
-static const char *const tuneModes[] = { "Saved", "Step" };
+static const char *const tuneModes[] = { "ATS", "Step" };
 
 // More submenu
 #define MORE_SQUELCH   0
@@ -729,6 +729,12 @@ static void clickStations(bool shortPress)
   {
     stationDeleteConfirm = false;
     currentCmd = CMD_NONE;
+    return;
+  }
+
+  if(stationsSelected() == STATION_ADD_CURRENT)
+  {
+    if(!stationsAddCurrent()) drawMessage("Save failed");
     return;
   }
 
@@ -1588,7 +1594,7 @@ static void drawStations(int x, int y, int sx)
   if(stationDeleteConfirm)
     snprintf(title, sizeof(title), "%s", stationsSelected() == STATION_CLEAR ? "Clear all?" : "Delete?");
   else
-    snprintf(title, sizeof(title), "Stations %u", stationsCount());
+    snprintf(title, sizeof(title), "ATS %u", stationsCount());
   drawCommon(title, x, y, sx, true);
 
   spr.setTextDatum(MC_DATUM);
@@ -1598,7 +1604,9 @@ static void drawStations(int x, int y, int sx)
     int index = stationsSelected() + i;
     if(index < 0 || index >= count) continue;
     char frequency[16];
-    if(index == STATION_CLEAR_SCAN)
+    if(index == STATION_ADD_CURRENT)
+      strlcpy(frequency, "Add Current", sizeof(frequency));
+    else if(index == STATION_CLEAR_SCAN)
       strlcpy(frequency, "Clear Scan", sizeof(frequency));
     else if(index == STATION_APPEND_SCAN)
       strlcpy(frequency, "Append Scan", sizeof(frequency));
