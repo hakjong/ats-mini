@@ -7,20 +7,24 @@
 #include "KrFm.h"
 
 #define STATION_LIMIT 256
-#define STATION_VERSION 2
+#define STATION_VERSION 3
+
+#define STATION_GROUP_FM 0
+#define STATION_GROUP_MW 1
+#define STATION_GROUP_SW 2
 
 struct SavedStations
 {
   uint8_t version;
-  uint8_t mode;
+  uint8_t group;
   uint16_t count;
-  uint16_t minimumFreq;
-  uint16_t maximumFreq;
+  uint16_t reserved[2];
   uint16_t frequencies[STATION_LIMIT];
 };
 
 static SavedStations stations = {};
-static uint8_t loadedBand = 255;
+static uint8_t loadedGroup = 255;
+static uint8_t selectedBand = 255;
 static uint16_t selected = 0;
 static bool scanAborted = false;
 static const SavedStations *activeScan = nullptr;
@@ -28,22 +32,46 @@ static uint16_t scanFoundCount = 0;
 static uint16_t recentFound[5] = {};
 static uint8_t recentCount = 0;
 
-static void stationKey(char *key, uint8_t band)
+static uint8_t stationGroup(uint8_t band)
 {
-  snprintf(key, 16, "Band-%u", band);
+  if(bands[band].bandType == FM_BAND_TYPE) return STATION_GROUP_FM;
+  if(bands[band].bandType == MW_BAND_TYPE || bands[band].bandType == LW_BAND_TYPE)
+    return STATION_GROUP_MW;
+  return STATION_GROUP_SW;
+}
+
+static void stationKey(char *key, uint8_t group)
+{
+  snprintf(key, 16, "Group-%u", group);
+}
+
+static bool frequencyInGroup(uint16_t frequency, uint8_t group)
+{
+  for(int i = 0; i < getTotalBands(); ++i)
+    if(stationGroup(i) == group && frequency >= bands[i].minimumFreq && frequency <= bands[i].maximumFreq)
+      return true;
+  return false;
+}
+
+static bool frequencyInCurrentBand(uint16_t frequency)
+{
+  const Band *band = getCurrentBand();
+  return frequency >= band->minimumFreq && frequency <= band->maximumFreq;
 }
 
 void stationsLoad(uint8_t band)
 {
-  const Band *current = &bands[band];
-  if(loadedBand == band && stations.mode == current->bandMode &&
-     stations.minimumFreq == current->minimumFreq &&
-     stations.maximumFreq == current->maximumFreq) return;
+  uint8_t group = stationGroup(band);
+  if(selectedBand != band)
+  {
+    selectedBand = band;
+    selected = 0;
+  }
+  if(loadedGroup == group && stations.group == group) return;
 
   char key[16];
-  stationKey(key, band);
-  loadedBand = band;
-  selected = 0;
+  stationKey(key, group);
+  loadedGroup = group;
   stations = {};
 
   prefs.begin("stations", true, STORAGE_PARTITION);
@@ -51,14 +79,11 @@ void stationsLoad(uint8_t band)
     prefs.getBytes(key, &stations, sizeof(stations));
   prefs.end();
 
-  if(stations.version != STATION_VERSION || stations.mode != current->bandMode ||
-     stations.minimumFreq != current->minimumFreq ||
-     stations.maximumFreq != current->maximumFreq || stations.count > STATION_LIMIT)
+  if(stations.version != STATION_VERSION || stations.group != group || stations.count > STATION_LIMIT)
     stations = {};
   else
     for(uint16_t i = 0; i < stations.count; ++i)
-      if(stations.frequencies[i] < current->minimumFreq ||
-         stations.frequencies[i] > current->maximumFreq ||
+      if(!frequencyInGroup(stations.frequencies[i], group) ||
          (i && stations.frequencies[i] <= stations.frequencies[i - 1]))
       {
         stations = {};
@@ -67,30 +92,49 @@ void stationsLoad(uint8_t band)
   if(stations.version != STATION_VERSION)
   {
     stations.version = STATION_VERSION;
-    stations.mode = current->bandMode;
-    stations.minimumFreq = current->minimumFreq;
-    stations.maximumFreq = current->maximumFreq;
+    stations.group = group;
   }
-  krFmSetStations(stations.frequencies, current->bandMode == FM ? stations.count : 0);
+  krFmSetStations(stations.frequencies, group == STATION_GROUP_FM ? stations.count : 0);
 }
 
-uint16_t stationsCount() { return stations.count; }
+uint16_t stationsCount()
+{
+  uint16_t count = 0;
+  for(uint16_t i = 0; i < stations.count; ++i)
+    if(frequencyInCurrentBand(stations.frequencies[i])) ++count;
+  return count;
+}
+
 uint16_t stationsSelected() { return selected; }
 uint16_t stationsFrequency(uint16_t index)
 {
-  return index < stations.count ? stations.frequencies[index] : 0;
+  for(uint16_t i = 0; i < stations.count; ++i)
+    if(frequencyInCurrentBand(stations.frequencies[i]) && !index--)
+      return stations.frequencies[i];
+  return 0;
+}
+
+static int32_t nextBandIndex(int32_t index, int8_t direction)
+{
+  for(uint16_t i = 0; i < stations.count; ++i)
+  {
+    index = (index + stations.count + direction) % stations.count;
+    if(frequencyInCurrentBand(stations.frequencies[index])) return index;
+  }
+  return -1;
 }
 
 uint16_t stationsNextFrequency(uint16_t current, int16_t direction)
 {
   stationsLoad(bandIdx);
-  if(!stations.count || !direction) return 0;
+  uint16_t count = stationsCount();
+  if(!count || !direction) return 0;
 
-  int32_t index = direction > 0 ? 0 : stations.count - 1;
+  int32_t index = -1;
   if(direction > 0)
   {
     for(uint16_t i = 0; i < stations.count; ++i)
-      if(stations.frequencies[i] > current)
+      if(frequencyInCurrentBand(stations.frequencies[i]) && stations.frequencies[i] > current)
       {
         index = i;
         break;
@@ -99,24 +143,25 @@ uint16_t stationsNextFrequency(uint16_t current, int16_t direction)
   else
   {
     for(int16_t i = stations.count - 1; i >= 0; --i)
-      if(stations.frequencies[i] < current)
+      if(frequencyInCurrentBand(stations.frequencies[i]) && stations.frequencies[i] < current)
       {
         index = i;
         break;
       }
   }
 
+  if(index < 0)
+    index = nextBandIndex(direction > 0 ? -1 : stations.count, direction > 0 ? 1 : -1);
   int32_t steps = direction > 0 ? direction : -(int32_t)direction;
-  int32_t offset = (steps - 1) % stations.count;
-  if(direction < 0) offset = stations.count - offset;
-  index = (index + offset) % stations.count;
+  for(int32_t i = 0; i < (steps - 1) % count; ++i)
+    index = nextBandIndex(index, direction > 0 ? 1 : -1);
   return stations.frequencies[index];
 }
 
 static bool saveStations(const SavedStations &updated)
 {
   char key[16];
-  stationKey(key, bandIdx);
+  stationKey(key, stationGroup(bandIdx));
   prefs.begin("stations", false, STORAGE_PARTITION);
   bool saved = prefs.putBytes(key, &updated, sizeof(updated)) == sizeof(updated);
   prefs.end();
@@ -130,11 +175,22 @@ static bool saveStations(const SavedStations &updated)
   return saved;
 }
 
+static void removeCurrentBand(SavedStations &updated)
+{
+  uint16_t kept = 0;
+  const uint16_t oldCount = updated.count;
+  for(uint16_t i = 0; i < oldCount; ++i)
+    if(!frequencyInCurrentBand(updated.frequencies[i]))
+      updated.frequencies[kept++] = updated.frequencies[i];
+  for(uint16_t i = kept; i < oldCount; ++i) updated.frequencies[i] = 0;
+  updated.count = kept;
+}
+
 bool stationsClear()
 {
   stationsLoad(bandIdx);
   SavedStations cleared = stations;
-  cleared.count = 0;
+  removeCurrentBand(cleared);
   if(!saveStations(cleared)) return false;
   if(currentMode == FM)
   {
@@ -167,14 +223,26 @@ StationAddResult stationsAddCurrent()
 bool stationsDeleteSelected()
 {
   stationsLoad(bandIdx);
-  if(selected < STATION_ACTION_COUNT || selected >= stations.count + STATION_ACTION_COUNT) return false;
+  uint16_t visibleCount = stationsCount();
+  if(selected < STATION_ACTION_COUNT || selected >= visibleCount + STATION_ACTION_COUNT) return false;
   SavedStations updated = stations;
-  uint16_t index = selected - STATION_ACTION_COUNT;
+  uint16_t visibleIndex = selected - STATION_ACTION_COUNT;
+  uint16_t index = 0;
+  while(index < updated.count)
+  {
+    if(frequencyInCurrentBand(updated.frequencies[index]))
+    {
+      if(!visibleIndex) break;
+      --visibleIndex;
+    }
+    ++index;
+  }
+  if(index >= updated.count) return false;
   for(uint16_t i = index; i + 1 < updated.count; ++i)
     updated.frequencies[i] = updated.frequencies[i + 1];
   updated.frequencies[--updated.count] = 0;
   if(!saveStations(updated)) return false;
-  if(selected >= stations.count + STATION_ACTION_COUNT) --selected;
+  if(selected >= stationsCount() + STATION_ACTION_COUNT) --selected;
   return true;
 }
 
@@ -226,7 +294,7 @@ StationScanResult stationsScan()
   const Band *band = getCurrentBand();
   const uint16_t originalFreq = currentFrequency;
   SavedStations found = stations;
-  found.count = 0;
+  removeCurrentBand(found);
 
   scanAborted = false;
   scanFoundCount = 0;
@@ -297,10 +365,10 @@ void stationsSelect(int16_t direction)
 {
   stationsLoad(bandIdx);
   if(!direction) return;
-  int16_t total = stations.count + STATION_ACTION_COUNT;
+  int16_t total = stationsCount() + STATION_ACTION_COUNT;
   selected = (selected + total + direction % total) % total;
   if(selected < STATION_ACTION_COUNT) return;
-  updateFrequency(stations.frequencies[selected - STATION_ACTION_COUNT], false);
+  updateFrequency(stationsFrequency(selected - STATION_ACTION_COUNT), false);
   clearStationInfo();
   identifyFrequency(currentFrequency);
   prefsRequestSave(SAVE_CUR_BAND);
