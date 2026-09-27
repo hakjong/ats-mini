@@ -71,9 +71,8 @@ Band bands[] =
   // https://www.hfunderground.com/wiki/CB
   // Also see MIN_CB_FREQUENCY and MAX_CB_FREQUENCY
   {"CB",   SW_BAND_TYPE, AM,  25000, 28000, 27135, 0, 4, 0, 0},
-  {"DAY",  SW_BAND_TYPE, AM,   9000, 22000, 15450, 1, 4, 0, 0},
-  {"TWIL", SW_BAND_TYPE, AM,   6000, 16000,  9650, 1, 4, 0, 0},
-  {"NIGHT", SW_BAND_TYPE, AM,   5000, 12000,  6000, 1, 4, 0, 0},
+  {"DAY",  SW_BAND_TYPE, AM,   9000, 26000, 15450, 1, 4, 0, 0},
+  {"NIGHT", SW_BAND_TYPE, AM,   3000, 12000,  6000, 1, 4, 0, 0},
 };
 
 // Menu order only. Keep bands[] indices stable for saved bands, memories,
@@ -82,7 +81,7 @@ static const uint8_t bandMenuOrder[] = {
   0, 17, 16, 15, // VHF, MW1, MW2, MW3
   1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, // ALL and AM shortwave
   18, 19, 20, 21, 22, 23, 24, 25, 26, // Amateur bands
-  27, 28, 29, 30, // CB, DAY, TWIL, NIGHT
+  27, 28, 29, // CB, DAY, NIGHT
 };
 static_assert(ITEM_COUNT(bandMenuOrder) == ITEM_COUNT(bands), "Band menu order must include every band");
 

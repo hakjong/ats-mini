@@ -256,6 +256,7 @@ bool prefsLoad(uint32_t items)
     // Load main global settings
     volume         = prefs.getUChar("Volume", volume);          // Current volume
     bandIdx        = prefs.getUChar("Band", bandIdx);           // Current band
+    if(bandIdx >= getTotalBands()) bandIdx = 0;
     wifiModeIdx    = prefs.getUChar("WiFiMode", wifiModeIdx);   // WiFi connection mode
     tuneModeIdx    = prefs.getUChar("TuneMode", TUNE_STATIONS); // VFO tuning mode
     if(tuneModeIdx > TUNE_ETM) tuneModeIdx = TUNE_STATIONS;

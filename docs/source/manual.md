@@ -186,11 +186,10 @@ To reset the receiver settings (current band, frequency, favorite stations, down
 | 12M  | 24800 kHz     | 25000 kHz     | USB          |
 | 10M  | 28000 kHz     | 29700 kHz     | USB          |
 | CB   | 25000 kHz     | 28000 kHz     | AM           |
-| DAY  | 9000 kHz      | 22000 kHz     | AM           |
-| TWIL | 6000 kHz      | 16000 kHz     | AM           |
-| NIGHT | 5000 kHz      | 12000 kHz     | AM           |
+| DAY  | 9000 kHz      | 26000 kHz     | AM           |
+| NIGHT | 3000 kHz      | 12000 kHz     | AM           |
 
-DAY is for daytime, TWIL for morning and evening twilight, and NIGHT for night and early morning shortwave listening.
+DAY is for daytime, and NIGHT for night and early morning shortwave listening.
 
 ## Remote control
 
