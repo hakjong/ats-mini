@@ -72,7 +72,7 @@ Band bands[] =
   // Also see MIN_CB_FREQUENCY and MAX_CB_FREQUENCY
   {"CB",   SW_BAND_TYPE, AM,  25000, 28000, 27135, 0, 4, 0, 0},
   {"DAY",  SW_BAND_TYPE, AM,   9000, 26000, 15450, 1, 4, 0, 0},
-  {"NIGHT", SW_BAND_TYPE, AM,   3000, 12000,  6000, 1, 4, 0, 0},
+  {"NIGHT", SW_BAND_TYPE, AM,   3000, 13000,  6000, 1, 4, 0, 0},
 };
 
 // Menu order only. Keep bands[] indices stable for saved bands, memories,

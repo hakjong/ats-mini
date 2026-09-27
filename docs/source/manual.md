@@ -188,7 +188,7 @@ To reset the receiver settings (current band, frequency, favorite stations, down
 | 10M  | 28000 kHz     | 29700 kHz     | USB          |
 | CB   | 25000 kHz     | 28000 kHz     | AM           |
 | DAY  | 9000 kHz      | 26000 kHz     | AM           |
-| NIGHT | 3000 kHz      | 12000 kHz     | AM           |
+| NIGHT | 3000 kHz      | 13000 kHz     | AM           |
 
 DAY is for daytime, and NIGHT for night and early morning shortwave listening.
 
