@@ -9,10 +9,6 @@
 #define STATION_LIMIT 256
 #define STATION_VERSION 3
 
-#define STATION_GROUP_FM 0
-#define STATION_GROUP_MW 1
-#define STATION_GROUP_SW 2
-
 struct SavedStations
 {
   uint8_t version;
@@ -59,6 +55,27 @@ static bool frequencyInCurrentBand(uint16_t frequency)
   return frequency >= band->minimumFreq && frequency <= band->maximumFreq;
 }
 
+static bool readGroup(SavedStations &saved, uint8_t group)
+{
+  if(group >= STATION_GROUP_COUNT) return false;
+
+  char key[16];
+  stationKey(key, group);
+  saved = {};
+  prefs.begin("stations", true, STORAGE_PARTITION);
+  if(prefs.getBytesLength(key) == sizeof(saved))
+    prefs.getBytes(key, &saved, sizeof(saved));
+  prefs.end();
+
+  if(saved.version != STATION_VERSION || saved.group != group || saved.count > STATION_LIMIT)
+    return false;
+  for(uint16_t i = 0; i < saved.count; ++i)
+    if(!frequencyInGroup(saved.frequencies[i], group) ||
+       (i && saved.frequencies[i] <= saved.frequencies[i - 1]))
+      return false;
+  return true;
+}
+
 void stationsLoad(uint8_t band)
 {
   uint8_t group = stationGroup(band);
@@ -69,28 +86,10 @@ void stationsLoad(uint8_t band)
   }
   if(loadedGroup == group && stations.group == group) return;
 
-  char key[16];
-  stationKey(key, group);
   loadedGroup = group;
-  stations = {};
-
-  prefs.begin("stations", true, STORAGE_PARTITION);
-  if(prefs.getBytesLength(key) == sizeof(stations))
-    prefs.getBytes(key, &stations, sizeof(stations));
-  prefs.end();
-
-  if(stations.version != STATION_VERSION || stations.group != group || stations.count > STATION_LIMIT)
-    stations = {};
-  else
-    for(uint16_t i = 0; i < stations.count; ++i)
-      if(!frequencyInGroup(stations.frequencies[i], group) ||
-         (i && stations.frequencies[i] <= stations.frequencies[i - 1]))
-      {
-        stations = {};
-        break;
-      }
-  if(stations.version != STATION_VERSION)
+  if(!readGroup(stations, group))
   {
+    stations = {};
     stations.version = STATION_VERSION;
     stations.group = group;
   }
@@ -156,6 +155,52 @@ uint16_t stationsNextFrequency(uint16_t current, int16_t direction)
   for(int32_t i = 0; i < (steps - 1) % count; ++i)
     index = nextBandIndex(index, direction > 0 ? 1 : -1);
   return stations.frequencies[index];
+}
+
+bool stationsReadGroup(uint8_t group, uint16_t *frequencies, uint16_t *count)
+{
+  if(!frequencies || !count) return false;
+  SavedStations saved;
+  if(!readGroup(saved, group))
+  {
+    *count = 0;
+    return group < STATION_GROUP_COUNT;
+  }
+  memcpy(frequencies, saved.frequencies, saved.count * sizeof(saved.frequencies[0]));
+  *count = saved.count;
+  return true;
+}
+
+bool stationsValidateGroup(uint8_t group, const uint16_t *frequencies, uint16_t count)
+{
+  if(group >= STATION_GROUP_COUNT || count > STATION_LIMIT || (count && !frequencies)) return false;
+  for(uint16_t i = 0; i < count; ++i)
+    if(!frequencyInGroup(frequencies[i], group) || (i && frequencies[i] <= frequencies[i - 1]))
+      return false;
+  return true;
+}
+
+bool stationsWriteGroup(uint8_t group, const uint16_t *frequencies, uint16_t count)
+{
+  if(!stationsValidateGroup(group, frequencies, count)) return false;
+  SavedStations updated = {};
+  updated.version = STATION_VERSION;
+  updated.group = group;
+  updated.count = count;
+  for(uint16_t i = 0; i < count; ++i)
+    updated.frequencies[i] = frequencies[i];
+
+  char key[16];
+  stationKey(key, group);
+  prefs.begin("stations", false, STORAGE_PARTITION);
+  bool saved = prefs.putBytes(key, &updated, sizeof(updated)) == sizeof(updated);
+  prefs.end();
+  if(saved && loadedGroup == group)
+  {
+    stations = updated;
+    if(group == STATION_GROUP_FM) krFmSetStations(stations.frequencies, stations.count);
+  }
+  return saved;
 }
 
 static bool saveStations(const SavedStations &updated)

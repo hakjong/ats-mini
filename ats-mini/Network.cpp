@@ -7,6 +7,7 @@
 #include "Splash.h"
 #include "TcpMode.h"
 #include "Ota.h"
+#include "Stations.h"
 
 #include <WiFi.h>
 #include <WiFiMulti.h>
@@ -17,6 +18,7 @@
 #include <ESPmDNS.h>
 #include <LittleFS.h>
 #include <time.h>
+#include <ctype.h>
 #include <atomic>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
@@ -26,6 +28,8 @@
 #define WIFI_MULTI_TOTAL_TIMEOUT  30000
 #define NTP_SYNC_TIMEOUT  10000
 #define SPLASH_MAX_FILE_SIZE (512U * 1024U)
+#define BACKUP_MAX_FILE_SIZE (16U * 1024U)
+#define MEMORY_NAME_SIZE sizeof(((Memory *)nullptr)->name)
 
 #ifndef WIFI_POWER_LEVEL
 #define WIFI_POWER_LEVEL WIFI_POWER_17dBm
@@ -101,6 +105,9 @@ static void webUploadFirmwareComplete(AsyncWebServerRequest *request);
 static void webUpdatePage(AsyncWebServerRequest *request, const OtaStatus &status = otaStatus(), int code = 0);
 static void webUploadFirmware(AsyncWebServerRequest *request, const String &filename,
                               size_t index, uint8_t *data, size_t len, bool final);
+static void webRestoreComplete(AsyncWebServerRequest *request);
+static void webUploadBackup(AsyncWebServerRequest *request, const String &filename,
+                            size_t index, uint8_t *data, size_t len, bool final);
 static bool webParseUTCDateTime(const String &text, uint32_t *epoch);
 
 static const String webInputField(const String &name, const String &value, bool pass = false);
@@ -110,8 +117,18 @@ static String webNavigation(const char *activePage);
 static const String webUtcOffsetSelector();
 static const String webThemeSelector();
 static const String webRadioPage();
+static const String webFavoritePage();
 static const String webMemoryPage();
+static const String webBackupPage(const String &message = "");
+static const String webBackupYaml();
 static const String webConfigPage();
+
+struct BackupUploadState
+{
+  String contents;
+  bool tooLarge;
+  bool invalidFile;
+};
 
 struct SplashUploadState
 {
@@ -506,9 +523,26 @@ static void webInit()
     request->send(200, "text/html", webRadioPage());
   });
 
+  server.on("/favorite", HTTP_ANY, [] (AsyncWebServerRequest *request) {
+    if(!webIsAuthenticated(request)) return request->requestAuthentication();
+    request->send(200, "text/html", webFavoritePage());
+  });
+
   server.on("/memory", HTTP_ANY, [] (AsyncWebServerRequest *request) {
     if(!webIsAuthenticated(request)) return request->requestAuthentication();
     request->send(200, "text/html", webMemoryPage());
+  });
+
+  server.on("/backup/download", HTTP_GET, [] (AsyncWebServerRequest *request) {
+    if(!webIsAuthenticated(request)) return request->requestAuthentication();
+    AsyncWebServerResponse *response = request->beginResponse(200, "application/yaml", webBackupYaml());
+    response->addHeader("Content-Disposition", "attachment; filename=ats-mini-memory.yaml");
+    request->send(response);
+  });
+
+  server.on("/backup", HTTP_GET, [] (AsyncWebServerRequest *request) {
+    if(!webIsAuthenticated(request)) return request->requestAuthentication();
+    request->send(200, "text/html", webBackupPage());
   });
 
   server.on("/config", HTTP_ANY, [] (AsyncWebServerRequest *request) {
@@ -528,6 +562,7 @@ static void webInit()
 
   // This method saves configuration form contents
   server.on("/setconfig", HTTP_POST, webSetConfig, webUploadSplash);
+  server.on("/backup/restore", HTTP_POST, webRestoreComplete, webUploadBackup);
 
   // Register subpaths first: the server also matches /update to /update/... .
   server.on("/update/upload", HTTP_POST, webUploadFirmwareComplete, webUploadFirmware);
@@ -849,7 +884,9 @@ static String webNavigation(const char *activePage)
   static const struct { const char *name; const char *path; } pages[] =
   {
     {"Status", "/"},
+    {"Favorite", "/favorite"},
     {"Memory", "/memory"},
+    {"Backup", "/backup"},
     {"Config", "/config"},
     {"Update", "/update"},
   };
@@ -1002,7 +1039,7 @@ static const String webRadioPage()
 );
 }
 
-static const String webMemoryPage()
+static const String webFavoritePage()
 {
   String items = "";
 
@@ -1024,9 +1061,283 @@ static const String webMemoryPage()
   }
 
   return webPage(
-"<H1>ATS-Mini Pocket Receiver Memory</H1>" + webNavigation("/memory") +
+"<H1>ATS-Mini Pocket Receiver Favorite</H1>" + webNavigation("/favorite") +
 "<TABLE COLUMNS=2>" + items + "</TABLE>"
 );
+}
+
+static const String webMemoryPage()
+{
+  static const char *const groupNames[] = { "FM", "MW", "SW" };
+  String data = "const groups={";
+  uint16_t frequencies[256];
+
+  for(uint8_t group = 0; group < STATION_GROUP_COUNT; ++group)
+  {
+    uint16_t count = 0;
+    stationsReadGroup(group, frequencies, &count);
+    if(group) data += ',';
+    data += String(groupNames[group]) + ":[";
+    for(uint16_t i = 0; i < count; ++i)
+    {
+      if(i) data += ',';
+      data += frequencies[i];
+    }
+    data += ']';
+  }
+  data += "};";
+
+  return webPage(
+"<H1>ATS-Mini Pocket Receiver Memory</H1>" + webNavigation("/memory") +
+"<TABLE COLUMNS=2 ID='memory'></TABLE>"
+"<SCRIPT>" + data +
+"const table=document.getElementById('memory');"
+"for(const [name,list] of Object.entries(groups)){"
+  "table.insertAdjacentHTML('beforeend',`<tr><th colspan='2' class='HEADING'>${name} Memory (${list.length})</th></tr>`);"
+  "if(!list.length)table.insertAdjacentHTML('beforeend',\"<tr><td colspan='2' class='CENTER'>--- Empty ---</td></tr>\");"
+  "list.forEach((frequency,index)=>{"
+    "const text=name==='FM'?(frequency/100).toFixed(2)+' MHz':frequency+' kHz';"
+    "table.insertAdjacentHTML('beforeend',`<tr><td class='LABEL' width='10%'>${index+1}</td><td>${text}</td></tr>`);"
+  "});"
+"}"
+"</SCRIPT>"
+);
+}
+
+static const String webBackupPage(const String &message)
+{
+  String status = message.length()? "<P CLASS='CENTER'>" + message + "</P>" : "";
+  return webPage(
+"<H1>ATS-Mini Memory Backup</H1>" + webNavigation("/backup") + status +
+"<TABLE COLUMNS=2>"
+  "<TR><TH COLSPAN=2 CLASS='HEADING'>Download</TH></TR>"
+  "<TR><TD COLSPAN=2 CLASS='CENTER'>Downloads all Favorite slots and FM/MW/SW Memory frequencies.</TD></TR>"
+  "<TR><TD COLSPAN=2 CLASS='CENTER'><A HREF='/backup/download' DOWNLOAD>Download YAML</A></TD></TR>"
+"</TABLE>"
+"<FORM ACTION='/backup/restore' METHOD='POST' ENCTYPE='multipart/form-data'>"
+  "<TABLE COLUMNS=2>"
+  "<TR><TH COLSPAN=2 CLASS='HEADING'>Restore</TH></TR>"
+  "<TR><TD CLASS='LABEL'>YAML File</TD><TD><INPUT TYPE='FILE' NAME='backup' ACCEPT='.yaml,.yml' REQUIRED></TD></TR>"
+  "<TR><TD COLSPAN=2 CLASS='CENTER'><SMALL>Restoring replaces all Favorite and Memory entries.</SMALL></TD></TR>"
+  "<TR><TH COLSPAN=2 CLASS='HEADING'><INPUT TYPE='SUBMIT' VALUE='Restore'></TH></TR>"
+  "</TABLE>"
+"</FORM>"
+);
+}
+
+static void appendHex(String &result, const char *data, size_t length)
+{
+  static const char hex[] = "0123456789ABCDEF";
+  for(size_t i = 0; i < length; ++i)
+  {
+    uint8_t value = static_cast<uint8_t>(data[i]);
+    result += hex[value >> 4];
+    result += hex[value & 0x0F];
+  }
+}
+
+static const String webBackupYaml()
+{
+  static const char *const groupNames[] = { "fm", "mw", "sw" };
+  String result;
+  result.reserve(16384);
+  result = "version: 1\nfavorites:\n";
+  for(uint8_t i = 0; i < MEMORY_COUNT; ++i)
+  {
+    result += "  - [" + String(i + 1) + ", " + memories[i].band + ", " + memories[i].freq +
+              ", " + memories[i].mode + ", \"";
+    appendHex(result, memories[i].name, sizeof(memories[i].name));
+    result += "\"]\n";
+  }
+  result += "memory:\n";
+  uint16_t frequencies[256];
+  for(uint8_t group = 0; group < STATION_GROUP_COUNT; ++group)
+  {
+    uint16_t count = 0;
+    stationsReadGroup(group, frequencies, &count);
+    result += "  " + String(groupNames[group]) + ": [";
+    for(uint16_t i = 0; i < count; ++i)
+    {
+      if(i) result += ", ";
+      result += frequencies[i];
+    }
+    result += "]\n";
+  }
+  return result;
+}
+
+struct MemoryBackup
+{
+  Memory favorites[MEMORY_COUNT];
+  uint16_t counts[STATION_GROUP_COUNT];
+  uint16_t frequencies[STATION_GROUP_COUNT][256];
+};
+
+static bool decodeHexName(const char *hex, char *name)
+{
+  if(strlen(hex) != MEMORY_NAME_SIZE * 2) return false;
+  for(size_t i = 0; i < MEMORY_NAME_SIZE; ++i)
+  {
+    if(!isxdigit(hex[i * 2]) || !isxdigit(hex[i * 2 + 1])) return false;
+    char pair[3] = { hex[i * 2], hex[i * 2 + 1], 0 };
+    name[i] = strtoul(pair, nullptr, 16);
+  }
+  return true;
+}
+
+static bool parseFrequencyList(const String &line, uint16_t *frequencies, uint16_t *count)
+{
+  int start = line.indexOf('[');
+  int end = line.lastIndexOf(']');
+  if(start < 0 || end < start || line.substring(end + 1).length()) return false;
+  String values = line.substring(start + 1, end);
+  values.trim();
+  *count = 0;
+  while(values.length())
+  {
+    int comma = values.indexOf(',');
+    String value = comma < 0? values : values.substring(0, comma);
+    value.trim();
+    if(!value.length() || *count >= 256) return false;
+    char *tail;
+    unsigned long frequency = strtoul(value.c_str(), &tail, 10);
+    if(!frequency || frequency > UINT16_MAX || *tail) return false;
+    frequencies[(*count)++] = frequency;
+    if(comma < 0) break;
+    values = values.substring(comma + 1);
+    values.trim();
+  }
+  return true;
+}
+
+static bool parseBackup(const String &contents, MemoryBackup &backup)
+{
+  bool favoriteSeen[MEMORY_COUNT] = {};
+  bool groupSeen[STATION_GROUP_COUNT] = {};
+  bool versionSeen = false;
+  int offset = 0;
+
+  while(offset <= contents.length())
+  {
+    int next = contents.indexOf('\n', offset);
+    if(next < 0) next = contents.length();
+    String line = contents.substring(offset, next);
+    line.trim();
+    offset = next + 1;
+    if(!line.length() || line.startsWith("#") || line == "favorites:" || line == "memory:") continue;
+    if(line == "version: 1")
+    {
+      versionSeen = true;
+      continue;
+    }
+    if(line.startsWith("- ["))
+    {
+      unsigned int slot, band, mode;
+      unsigned long long frequency;
+      char nameHex[MEMORY_NAME_SIZE * 2 + 1] = {};
+      int consumed = 0;
+      if(sscanf(line.c_str(), "- [%u, %u, %llu, %u, \"%20[0-9A-Fa-f]\"]%n",
+                &slot, &band, &frequency, &mode, nameHex, &consumed) != 5 ||
+         consumed != line.length() || !slot || slot > MEMORY_COUNT || favoriteSeen[slot - 1] ||
+         band >= static_cast<unsigned int>(getTotalBands()) ||
+         mode >= static_cast<unsigned int>(getTotalModes()) || frequency > UINT32_MAX)
+        return false;
+      Memory &favorite = backup.favorites[slot - 1];
+      favorite.freq = frequency;
+      favorite.band = band;
+      favorite.mode = mode;
+      if(!decodeHexName(nameHex, favorite.name) ||
+         (favorite.freq && !isMemoryInBand(&bands[favorite.band], &favorite))) return false;
+      favoriteSeen[slot - 1] = true;
+      continue;
+    }
+
+    static const char *const groupNames[] = { "fm:", "mw:", "sw:" };
+    bool matched = false;
+    for(uint8_t group = 0; group < STATION_GROUP_COUNT; ++group)
+      if(line.startsWith(groupNames[group]))
+      {
+        if(groupSeen[group] || !parseFrequencyList(line, backup.frequencies[group], &backup.counts[group]))
+          return false;
+        groupSeen[group] = matched = true;
+        break;
+      }
+    if(!matched) return false;
+  }
+
+  if(!versionSeen) return false;
+  for(uint8_t i = 0; i < MEMORY_COUNT; ++i)
+    if(!favoriteSeen[i]) return false;
+  for(uint8_t group = 0; group < STATION_GROUP_COUNT; ++group)
+  {
+    if(!groupSeen[group]) return false;
+    if(!stationsValidateGroup(group, backup.frequencies[group], backup.counts[group])) return false;
+  }
+  return true;
+}
+
+static void webUploadBackup(AsyncWebServerRequest *request, const String &filename,
+                            size_t index, uint8_t *data, size_t len, bool)
+{
+  if(!webIsAuthenticated(request)) return;
+  if(!index)
+  {
+    BackupUploadState *state = new BackupUploadState;
+    if(!state) return;
+    state->tooLarge = false;
+    state->invalidFile = !filename.endsWith(".yaml") && !filename.endsWith(".yml");
+    state->contents.reserve(BACKUP_MAX_FILE_SIZE);
+    request->_tempObject = state;
+  }
+  BackupUploadState *state = static_cast<BackupUploadState *>(request->_tempObject);
+  if(!state || state->tooLarge || state->invalidFile) return;
+  if(index + len > BACKUP_MAX_FILE_SIZE)
+  {
+    state->tooLarge = true;
+    state->contents = "";
+    return;
+  }
+  for(size_t i = 0; i < len; ++i) state->contents += static_cast<char>(data[i]);
+}
+
+static void webRestoreComplete(AsyncWebServerRequest *request)
+{
+  if(!webIsAuthenticated(request)) return request->requestAuthentication();
+  BackupUploadState *state = static_cast<BackupUploadState *>(request->_tempObject);
+  request->_tempObject = nullptr;
+  if(!state) return request->send(400, "text/html", webBackupPage("No backup file uploaded."));
+  if(state->invalidFile)
+  {
+    delete state;
+    return request->send(400, "text/html", webBackupPage("Select a .yaml or .yml backup file."));
+  }
+  if(state->tooLarge)
+  {
+    delete state;
+    return request->send(413, "text/html", webBackupPage("The backup file must not exceed 16 KB."));
+  }
+
+  MemoryBackup *backup = static_cast<MemoryBackup *>(ps_calloc(1, sizeof(MemoryBackup)));
+  bool valid = backup && parseBackup(state->contents, *backup);
+  delete state;
+  if(!valid)
+  {
+    free(backup);
+    return request->send(400, "text/html", webBackupPage("Invalid ATS Mini memory backup."));
+  }
+
+  for(uint8_t group = 0; group < STATION_GROUP_COUNT; ++group)
+    if(!stationsWriteGroup(group, backup->frequencies[group], backup->counts[group]))
+    {
+      free(backup);
+      return request->send(500, "text/html", webBackupPage("Failed to restore Memory frequencies."));
+    }
+  memcpy(memories, backup->favorites, sizeof(backup->favorites));
+  prefs.begin("memories", false, STORAGE_PARTITION);
+  for(uint8_t i = 0; i < MEMORY_COUNT; ++i) prefsSaveMemory(i, false);
+  prefs.end();
+  free(backup);
+  request->send(200, "text/html", webBackupPage("Favorite and Memory restored successfully."));
 }
 
 const String webConfigPage()
