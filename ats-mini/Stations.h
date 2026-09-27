@@ -9,10 +9,26 @@
 #define STATION_CLEAR        3
 #define STATION_ACTION_COUNT 4
 
+enum class StationAddResult : uint8_t
+{
+  ADDED,
+  ALREADY_SAVED,
+  LIST_FULL,
+  SAVE_FAILED,
+};
+
+enum class StationScanResult : uint8_t
+{
+  COMPLETED,
+  CANCELLED,
+  SAVE_FAILED,
+  UNSUPPORTED,
+};
+
 void stationsLoad(uint8_t band);
-bool stationsScan(bool append);
+StationScanResult stationsScan(bool append);
 void stationsSelect(int16_t direction);
-bool stationsAddCurrent();
+StationAddResult stationsAddCurrent();
 bool stationsClear();
 bool stationsDeleteSelected();
 uint16_t stationsCount();

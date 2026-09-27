@@ -721,40 +721,61 @@ static void clickScan(bool shortPress)
   else currentCmd = CMD_NONE;
 }
 
-static bool stationDeleteConfirm = false;
+static bool stationActionConfirm = false;
 
 static void clickStations(bool shortPress)
 {
   if(!shortPress)
   {
-    stationDeleteConfirm = false;
+    stationActionConfirm = false;
     currentCmd = CMD_NONE;
     return;
   }
 
   if(stationsSelected() == STATION_ADD_CURRENT)
   {
-    if(!stationsAddCurrent()) drawMessage("Save failed");
+    switch(stationsAddCurrent())
+    {
+      case StationAddResult::ADDED:
+        currentCmd = CMD_NONE;
+        drawMessage("Frequency added");
+        break;
+      case StationAddResult::ALREADY_SAVED: drawMessage("Already saved");  break;
+      case StationAddResult::LIST_FULL:     drawMessage("List full");      break;
+      case StationAddResult::SAVE_FAILED:   drawMessage("Save failed");    break;
+    }
     return;
   }
 
   if(stationsSelected() <= STATION_APPEND_SCAN)
   {
     if(isSSB()) drawMessage("AM/FM only");
+    else if(!stationActionConfirm)
+    {
+      stationActionConfirm = true;
+      return;
+    }
     else
     {
+      stationActionConfirm = false;
       drawMessage("Scanning band...");
-      if(!stationsScan(stationsSelected() == STATION_APPEND_SCAN)) drawMessage("Save failed");
+      switch(stationsScan(stationsSelected() == STATION_APPEND_SCAN))
+      {
+        case StationScanResult::COMPLETED:   currentCmd = CMD_NONE;         break;
+        case StationScanResult::CANCELLED:   drawMessage("Scan cancelled"); break;
+        case StationScanResult::SAVE_FAILED: drawMessage("Save failed");    break;
+        case StationScanResult::UNSUPPORTED: drawMessage("AM/FM only");     break;
+      }
     }
     return;
   }
 
-  if(!stationDeleteConfirm)
+  if(!stationActionConfirm)
   {
-    stationDeleteConfirm = true;
+    stationActionConfirm = true;
     return;
   }
-  stationDeleteConfirm = false;
+  stationActionConfirm = false;
   if(!(stationsSelected() == STATION_CLEAR ? stationsClear() : stationsDeleteSelected()))
     drawMessage("Save failed");
 }
@@ -1141,7 +1162,7 @@ static void clickMenu(int cmd, bool shortPress)
 
     case MENU_STATIONS:
       stationsLoad(bandIdx);
-      stationDeleteConfirm = false;
+      stationActionConfirm = false;
       currentCmd = CMD_STATIONS;
       break;
   }
@@ -1260,7 +1281,7 @@ bool doSideBar(uint16_t cmd, int16_t enc, int16_t enca)
     case CMD_UI:         doUILayout(scrollDirection * enc);break;
     case CMD_RDS:        doRDSMode(scrollDirection * enc);break;
     case CMD_MEMORY:     doMemory(scrollDirection * enca);break;
-    case CMD_STATIONS:   stationDeleteConfirm = false; stationsSelect(scrollDirection * enc);break;
+    case CMD_STATIONS:   stationActionConfirm = false; stationsSelect(scrollDirection * enc);break;
     case CMD_SLEEP:      doSleep(enca);break;
     case CMD_SLEEPMODE:  doSleepMode(scrollDirection * enc);break;
     case CMD_USBMODE:    doUSBMode(scrollDirection * enc);break;
@@ -1591,8 +1612,15 @@ static void drawStations(int x, int y, int sx)
     return;
   }
 
-  if(stationDeleteConfirm)
-    snprintf(title, sizeof(title), "%s", stationsSelected() == STATION_CLEAR ? "Clear all?" : "Delete?");
+  if(stationActionConfirm)
+  {
+    if(stationsSelected() == STATION_CLEAR_SCAN)
+      strlcpy(title, "Clear scan?", sizeof(title));
+    else if(stationsSelected() == STATION_APPEND_SCAN)
+      strlcpy(title, "Append scan?", sizeof(title));
+    else
+      strlcpy(title, stationsSelected() == STATION_CLEAR ? "Clear all?" : "Delete?", sizeof(title));
+  }
   else
     snprintf(title, sizeof(title), "ATS %u", stationsCount());
   drawCommon(title, x, y, sx, true);
@@ -1619,7 +1647,7 @@ static void drawStations(int x, int y, int sx)
 
     if(i == 0)
     {
-      drawZoomedMenu(stationDeleteConfirm ? "Hold again" : frequency);
+      drawZoomedMenu(stationActionConfirm ? "Hold again" : frequency);
       spr.setTextColor(TH.menu_hl_text, TH.menu_hl_bg);
     }
     else spr.setTextColor(TH.menu_item);

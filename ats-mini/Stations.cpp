@@ -147,20 +147,21 @@ bool stationsClear()
   return true;
 }
 
-bool stationsAddCurrent()
+StationAddResult stationsAddCurrent()
 {
   stationsLoad(bandIdx);
   uint16_t index = 0;
   while(index < stations.count && stations.frequencies[index] < currentFrequency) ++index;
-  if(index < stations.count && stations.frequencies[index] == currentFrequency) return true;
-  if(stations.count == STATION_LIMIT) return false;
+  if(index < stations.count && stations.frequencies[index] == currentFrequency)
+    return StationAddResult::ALREADY_SAVED;
+  if(stations.count == STATION_LIMIT) return StationAddResult::LIST_FULL;
 
   SavedStations updated = stations;
   for(uint16_t i = updated.count; i > index; --i)
     updated.frequencies[i] = updated.frequencies[i - 1];
   updated.frequencies[index] = currentFrequency;
   ++updated.count;
-  return saveStations(updated);
+  return saveStations(updated) ? StationAddResult::ADDED : StationAddResult::SAVE_FAILED;
 }
 
 bool stationsDeleteSelected()
@@ -217,9 +218,9 @@ static void rememberStation(SavedStations &found, uint16_t freq)
   }
 }
 
-bool stationsScan(bool append)
+StationScanResult stationsScan(bool append)
 {
-  if(isSSB()) return false; // The SI4732 cannot seek in SSB mode.
+  if(isSSB()) return StationScanResult::UNSUPPORTED; // The SI4732 cannot seek in SSB mode.
 
   stationsLoad(bandIdx);
   const Band *band = getCurrentBand();
@@ -280,8 +281,8 @@ bool stationsScan(bool append)
   clearStationInfo();
   identifyFrequency(currentFrequency);
 
-  // A user stop still commits the stations found so far.
-  if(!saveStations(found)) return false;
+  if(scanAborted) return StationScanResult::CANCELLED;
+  if(!saveStations(found)) return StationScanResult::SAVE_FAILED;
   if(!append && currentMode == FM)
   {
     krFmSetManualRegion(KR_FM_AUTO);
@@ -289,7 +290,7 @@ bool stationsScan(bool append)
     clearStationInfo();
     identifyFrequency(currentFrequency);
   }
-  return true;
+  return StationScanResult::COMPLETED;
 }
 
 void stationsSelect(int16_t direction)
