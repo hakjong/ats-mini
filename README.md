@@ -1,3 +1,24 @@
+# ATS Mini KR
+
+ATS Mini 펌웨어 기능 개선 + 한국 FM 특화 기능 추가
+
+
+## 변경점
+- 기존 Memory -> Favorite 로 이름 변경
+- Memory, ATS 기능 추가
+- (TECSUN) ETM 기능 추가
+- DAY, NIGHT 단파 밴드 추가
+- Web UI 에서 저장된 주파수 조회, 다운로드, 복원
+- 한국 FM 특화 기능 (★)
+  - 수신 지역에 맞는 방송국명 표시
+  - Memory ATS 주파수를 이용해 수신 지역 추론
+- 기타 편의성 개선
+  - Wifi 연결 도중 조작 가능
+  - CPU Sleep 복귀 시 Sync Only 자동 재접속 방지
+  - 짧은 Hold로 메뉴 닫기 지원
+  - 메뉴 정리
+
+
 # ATS Mini
 
 ![](docs/source/_static/esp32-si4732-ui-theme.jpg)
