@@ -738,18 +738,18 @@ static void clickStations(bool shortPress)
     {
       case StationAddResult::ADDED:
         currentCmd = CMD_NONE;
-        drawMessage("Frequency added");
+        statusShow("Frequency added");
         break;
-      case StationAddResult::ALREADY_SAVED: drawMessage("Already saved");  break;
-      case StationAddResult::LIST_FULL:     drawMessage("List full");      break;
-      case StationAddResult::SAVE_FAILED:   drawMessage("Save failed");    break;
+      case StationAddResult::ALREADY_SAVED: statusShow("Already saved");  break;
+      case StationAddResult::LIST_FULL:     statusShow("List full");      break;
+      case StationAddResult::SAVE_FAILED:   statusShow("Save failed");    break;
     }
     return;
   }
 
   if(stationsSelected() <= STATION_APPEND_SCAN)
   {
-    if(isSSB()) drawMessage("AM/FM only");
+    if(isSSB()) statusShow("AM/FM only");
     else if(!stationActionConfirm)
     {
       stationActionConfirm = true;
@@ -762,9 +762,9 @@ static void clickStations(bool shortPress)
       switch(stationsScan(stationsSelected() == STATION_APPEND_SCAN))
       {
         case StationScanResult::COMPLETED:   currentCmd = CMD_NONE;         break;
-        case StationScanResult::CANCELLED:   drawMessage("Scan cancelled"); break;
-        case StationScanResult::SAVE_FAILED: drawMessage("Save failed");    break;
-        case StationScanResult::UNSUPPORTED: drawMessage("AM/FM only");     break;
+        case StationScanResult::CANCELLED:   statusShow("Scan cancelled"); break;
+        case StationScanResult::SAVE_FAILED: statusShow("Save failed");    break;
+        case StationScanResult::UNSUPPORTED: statusShow("AM/FM only");     break;
       }
     }
     return;
@@ -777,7 +777,7 @@ static void clickStations(bool shortPress)
   }
   stationActionConfirm = false;
   if(!(stationsSelected() == STATION_CLEAR ? stationsClear() : stationsDeleteSelected()))
-    drawMessage("Save failed");
+    statusShow("Save failed");
 }
 
 static void doTheme(int16_t enc)
