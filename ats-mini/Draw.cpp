@@ -203,6 +203,7 @@ void drawFrequency(uint32_t freq, int x, int y, int ux, int uy, uint8_t hl)
     spr.drawFloat(freq/100.00, 2, x, y, FONT_DIGITS);
     spr.setTextDatum(ML_DATUM);
     spr.setTextColor(TH.funit_text);
+    spr.drawString(getTuneModeName(), ux, uy - 15, FONT_SMALL);
     spr.drawString("MHz", ux, uy);
   }
   else
@@ -231,6 +232,7 @@ void drawFrequency(uint32_t freq, int x, int y, int ux, int uy, uint8_t hl)
 
     // SSB/AM frequencies are measured in kHz
     spr.setTextColor(TH.funit_text);
+    spr.drawString(getTuneModeName(), ux, uy - 15, FONT_SMALL);
     spr.drawString("kHz", ux, uy);
   }
 

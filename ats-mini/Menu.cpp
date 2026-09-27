@@ -130,6 +130,11 @@ static const char *menu[] =
 static uint8_t tuneMenuIdx = TUNE_STEP;
 static const char *const tuneModes[] = { "Step", "Memory", "ETM" };
 
+const char *getTuneModeName()
+{
+  return tuneModeIdx < ITEM_COUNT(tuneModes) ? tuneModes[tuneModeIdx] : "";
+}
+
 // More submenu
 #define MORE_SQUELCH   0
 #define MORE_BW        1

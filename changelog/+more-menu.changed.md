@@ -1,1 +1,1 @@
-Moved Squelch, Bandwidth, AGC/ATTN, AVC, SoftMute, Mode, Step, and NTP Now from the main menu into the ---More--- submenu, placed below Settings. TuneMode now defaults to Step, and Seek and Scan appear in the main menu only in that mode.
+Moved Squelch, Bandwidth, AGC/ATTN, AVC, SoftMute, Mode, Step, and NTP Now from the main menu into the ---More--- submenu, placed below Settings. TuneMode now defaults to Step, is shown above the frequency unit, and controls whether Seek and Scan appear in the main menu.

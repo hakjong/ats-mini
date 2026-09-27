@@ -127,6 +127,7 @@ void applyFmStereo();
 int getTotalBands();
 int getTotalModes();
 int getTotalMemories();
+const char *getTuneModeName();
 Band *getCurrentBand();
 uint8_t getFreqInputPos();
 int getFreqInputStep();
