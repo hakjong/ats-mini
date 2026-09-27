@@ -129,15 +129,7 @@ static const char *menu[] =
 };
 
 static uint8_t tuneMenuIdx = TUNE_STATIONS;
-static const char *const tuneModes[] = { "ATS", "Step", "ETM" };
-static const uint8_t tuneMenuOrder[] = { TUNE_STATIONS, TUNE_ETM, TUNE_STEP };
-
-static uint8_t tuneModePosition()
-{
-  for(uint8_t i = 0; i < ITEM_COUNT(tuneMenuOrder); ++i)
-    if(tuneMenuOrder[i] == tuneModeIdx) return i;
-  return 0;
-}
+static const char *const tuneModes[] = { "ATS", "ETM", "Step" };
 
 // More submenu
 #define MORE_SQUELCH   0
@@ -1136,7 +1128,7 @@ static void doMore(int16_t enc)
 
 static void doTuneMenu(int16_t enc)
 {
-  tuneMenuIdx = wrap_range(tuneMenuIdx, enc, 0, LAST_ITEM(tuneMenuOrder));
+  tuneMenuIdx = wrap_range(tuneMenuIdx, enc, 0, LAST_ITEM(tuneModes));
 }
 
 static void clickMenu(int cmd, bool shortPress)
@@ -1147,7 +1139,7 @@ static void clickMenu(int cmd, bool shortPress)
   switch(cmd)
   {
     case MENU_TUNING:
-      tuneMenuIdx = tuneModePosition();
+      tuneMenuIdx = tuneModeIdx;
       currentCmd = CMD_TUNING;
       break;
     case MENU_SEEK:     currentCmd = CMD_SEEK;      break;
@@ -1212,10 +1204,9 @@ static void clickMenu(int cmd, bool shortPress)
 static void clickTuneMenu()
 {
   currentCmd = CMD_NONE;
-  uint8_t selectedMode = tuneMenuOrder[tuneMenuIdx];
-  if(tuneModeIdx != selectedMode)
+  if(tuneModeIdx != tuneMenuIdx)
   {
-    tuneModeIdx = selectedMode;
+    tuneModeIdx = tuneMenuIdx;
     prefsRequestSave(SAVE_SETTINGS);
   }
   statusShow(tuneModes[tuneModeIdx]);
@@ -1486,7 +1477,7 @@ static void drawTuneMenu(int x, int y, int sx)
   {
     int index = tuneMenuIdx + i;
     if(index < 0 || index >= ITEM_COUNT(tuneModes)) continue;
-    const char *label = tuneModes[tuneMenuOrder[index]];
+    const char *label = tuneModes[index];
     if(i == 0)
     {
       drawZoomedMenu(label);

@@ -1,1 +1,1 @@
-Added a TECSUN-style ETM mode. ETM Scan finds stations across the current AM/FM band, saves a separate sorted list of up to 256 frequencies per band across power cycles, and selects ETM in TuneMode. Cancelling a scan preserves the previous ETM list.
+Added a TECSUN-style ETM mode. ETM Scan finds stations across the current AM/FM band, saves a separate sorted list of up to 256 frequencies per band across power cycles, and selects ETM in TuneMode. TuneMode values follow their displayed ATS, ETM, and Step order. Cancelling a scan preserves the previous ETM list.

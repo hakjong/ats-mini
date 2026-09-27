@@ -66,8 +66,8 @@
 
 // VFO tuning modes
 #define TUNE_STATIONS 0
-#define TUNE_STEP     1
-#define TUNE_ETM      2
+#define TUNE_ETM      1
+#define TUNE_STEP     2
 
 //
 // Data Types
