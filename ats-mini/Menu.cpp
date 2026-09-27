@@ -111,7 +111,7 @@ Band *getCurrentBand() { return(&bands[bandIdx]); }
 #define MENU_MORE         9
 
 int8_t menuIdx = MENU_VOLUME;
-uint8_t tuneModeIdx = TUNE_STATIONS;
+uint8_t tuneModeIdx = TUNE_STEP;
 
 static const char *menu[] =
 {
@@ -127,7 +127,7 @@ static const char *menu[] =
   "---More---",
 };
 
-static uint8_t tuneMenuIdx = TUNE_STATIONS;
+static uint8_t tuneMenuIdx = TUNE_STEP;
 static const char *const tuneModes[] = { "Step", "Memory", "ETM" };
 
 // More submenu
