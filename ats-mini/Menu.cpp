@@ -243,6 +243,14 @@ Memory newMemory;
 
 int getTotalMemories() { return(MEMORY_COUNT); }
 
+bool currentFrequencyIsFavorite()
+{
+  uint32_t frequency = freqToHz(currentFrequency, currentMode) + currentBFO;
+  for(uint8_t i = 0; i < MEMORY_COUNT; ++i)
+    if(memories[i].freq == frequency) return true;
+  return false;
+}
+
 //
 // RDS Menu
 //

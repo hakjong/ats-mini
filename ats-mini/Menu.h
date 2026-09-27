@@ -128,6 +128,7 @@ int getTotalBands();
 int getTotalModes();
 int getTotalMemories();
 const char *getTuneModeName();
+bool currentFrequencyIsFavorite();
 Band *getCurrentBand();
 uint8_t getFreqInputPos();
 int getFreqInputStep();
