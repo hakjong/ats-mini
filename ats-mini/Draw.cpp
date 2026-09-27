@@ -199,23 +199,24 @@ void drawFrequency(uint32_t freq, int x, int y, int ux, int uy, uint8_t hl)
     const char *name = tuneModeIdx == TUNE_STATIONS ? "Mem" : getTuneModeName();
     bool inMemory = stationsHasFrequency(currentFrequency);
     bool inFavorite = currentFrequencyIsFavorite();
-    int position = ux;
 
     if(inMemory)
     {
       spr.setTextColor(0xF800);
-      position += spr.drawString("M", position, uy - 18, FONT_SMALL) + 4;
+      spr.drawString("M", ux, uy - 18, FONT_SMALL);
     }
     if(inFavorite)
     {
       spr.setTextColor(0x07E0);
-      position += spr.drawString("F", position, uy - 18, FONT_SMALL) + 4;
+      spr.drawString("F", ux + 15, uy - 18, FONT_SMALL);
     }
     if(*name)
     {
       spr.setTextColor(TH.funit_text);
-      spr.drawString(name, position, uy - 18, FONT_SMALL);
+      spr.setTextDatum(MR_DATUM);
+      spr.drawString(name, 319, uy - 18, FONT_SMALL);
     }
+    spr.setTextDatum(ML_DATUM);
     spr.setTextColor(TH.funit_text);
   };
 

@@ -1239,7 +1239,6 @@ static void clickTuneMenu()
     tuneModeIdx = tuneMenuIdx;
     prefsRequestSave(SAVE_SETTINGS);
   }
-  statusShow(tuneModes[tuneModeIdx]);
 }
 
 static void clickMore(int cmd)
