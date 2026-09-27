@@ -196,40 +196,27 @@ void drawFrequency(uint32_t freq, int x, int y, int ux, int uy, uint8_t hl)
   spr.setTextColor(TH.freq_text);
 
   auto drawTuneMode = [ux, uy]() {
-    const char *name = getTuneModeName();
+    const char *name = tuneModeIdx == TUNE_STATIONS ? "Mem" : getTuneModeName();
     bool inMemory = stationsHasFrequency(currentFrequency);
     bool inFavorite = currentFrequencyIsFavorite();
     int position = ux;
 
-    if(tuneModeIdx == TUNE_STATIONS)
-    {
-      spr.setTextColor(inMemory ? 0xF800 : TH.funit_text);
-      position += spr.drawString("M", position, uy - 15, FONT_SMALL);
-      spr.setTextColor(TH.funit_text);
-      position += spr.drawString("emory", position, uy - 15, FONT_SMALL);
-      if(inFavorite)
-      {
-        spr.setTextColor(0x07E0);
-        spr.drawString("F", position + 3, uy - 15, FONT_SMALL);
-      }
-      return;
-    }
-
     if(inMemory)
     {
       spr.setTextColor(0xF800);
-      position += spr.drawString("M", position, uy - 15, FONT_SMALL) + 3;
+      position += spr.drawString("M", position, uy - 18, FONT_SMALL) + 4;
     }
     if(inFavorite)
     {
       spr.setTextColor(0x07E0);
-      position += spr.drawString("F", position, uy - 15, FONT_SMALL) + 3;
+      position += spr.drawString("F", position, uy - 18, FONT_SMALL) + 4;
     }
     if(*name)
     {
       spr.setTextColor(TH.funit_text);
-      spr.drawString(name, position, uy - 15, FONT_SMALL);
+      spr.drawString(name, position, uy - 18, FONT_SMALL);
     }
+    spr.setTextColor(TH.funit_text);
   };
 
   if(currentMode==FM)
