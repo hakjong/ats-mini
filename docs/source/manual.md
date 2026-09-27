@@ -11,7 +11,7 @@
 * **Battery status** (top right corner). It doesn't show the voltage when charged, see [#36](https://github.com/esp32-si4732/ats-mini/issues/36#issuecomment-2778356143). The only indication that the battery is charging is the hardware LED on the bottom of the receiver, which turns ON during charging.
 * **Band name and modulation** (VHF & FM, top center). See the [Bands table](#bands-table) for more details.
 * **Info panel** (the box on the left side), also **Menu**. The parameters are explained in the [Menu](#menu) section. Also it can show the current time, or the date and time after a successful synchronization.
-* **Frequency** (center of the screen). Memory or ETM is shown in small text above the MHz/kHz unit when that TuneMode is active; Step is not shown.
+* **Frequency** (center of the screen). Memory or ETM is shown in small text above the MHz/kHz unit when that TuneMode is active; Step is not shown. A red **M** indicates that the current frequency is saved in Memory.
 * **FM station name** (RDS PS) or **frequency name** (right below the frequency). A frequency name appears for some popular frequencies like FT8, SSTV, CB channels, or a shortwave [schedule](#schedule). Can also display current **menu option** using a bigger font when the Zoom Menu setting is enabled.
 * **Tuning scale** (bottom of the screen). Can be replaced with additional RDS fields (RT, PTY) when extended RDS is enabled, or RSSI/SNR graphs in Scan mode.
 

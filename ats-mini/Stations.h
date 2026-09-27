@@ -40,6 +40,7 @@ StationAddResult stationsAddCurrent();
 bool stationsClear();
 bool stationsDeleteSelected();
 uint16_t stationsCount();
+bool stationsHasFrequency(uint16_t frequency);
 uint16_t stationsSelected();
 uint16_t stationsFrequency(uint16_t index);
 uint16_t stationsNextFrequency(uint16_t current, int16_t direction);

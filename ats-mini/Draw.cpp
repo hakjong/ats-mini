@@ -4,6 +4,7 @@
 #include "Utils.h"
 #include "Menu.h"
 #include "BleMode.h"
+#include "Stations.h"
 #include "Draw.h"
 
 //
@@ -194,6 +195,24 @@ void drawFrequency(uint32_t freq, int x, int y, int ux, int uy, uint8_t hl)
   spr.setTextDatum(MR_DATUM);
   spr.setTextColor(TH.freq_text);
 
+  auto drawTuneMode = [ux, uy]() {
+    const char *name = getTuneModeName();
+    if(!stationsHasFrequency(currentFrequency))
+    {
+      spr.setTextColor(TH.funit_text);
+      spr.drawString(name, ux, uy - 15, FONT_SMALL);
+      return;
+    }
+
+    spr.setTextColor(0xF800);
+    int width = spr.drawString("M", ux, uy - 15, FONT_SMALL);
+    spr.setTextColor(TH.funit_text);
+    if(tuneModeIdx == TUNE_STATIONS)
+      spr.drawString("emory", ux + width, uy - 15, FONT_SMALL);
+    else if(*name)
+      spr.drawString(name, ux + width + 3, uy - 15, FONT_SMALL);
+  };
+
   if(currentMode==FM)
   {
     // Determine where underscore is located
@@ -203,7 +222,7 @@ void drawFrequency(uint32_t freq, int x, int y, int ux, int uy, uint8_t hl)
     spr.drawFloat(freq/100.00, 2, x, y, FONT_DIGITS);
     spr.setTextDatum(ML_DATUM);
     spr.setTextColor(TH.funit_text);
-    spr.drawString(getTuneModeName(), ux, uy - 15, FONT_SMALL);
+    drawTuneMode();
     spr.drawString("MHz", ux, uy);
   }
   else
@@ -232,7 +251,7 @@ void drawFrequency(uint32_t freq, int x, int y, int ux, int uy, uint8_t hl)
 
     // SSB/AM frequencies are measured in kHz
     spr.setTextColor(TH.funit_text);
-    spr.drawString(getTuneModeName(), ux, uy - 15, FONT_SMALL);
+    drawTuneMode();
     spr.drawString("kHz", ux, uy);
   }
 

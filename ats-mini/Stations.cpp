@@ -104,6 +104,14 @@ uint16_t stationsCount()
   return count;
 }
 
+bool stationsHasFrequency(uint16_t frequency)
+{
+  stationsLoad(bandIdx);
+  for(uint16_t i = 0; i < stations.count; ++i)
+    if(stations.frequencies[i] == frequency) return true;
+  return false;
+}
+
 uint16_t stationsSelected() { return selected; }
 void stationsSelectFrequency(uint16_t frequency)
 {
