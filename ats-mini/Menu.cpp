@@ -132,7 +132,7 @@ static const char *const tuneModes[] = { "Step", "Memory", "ETM" };
 
 const char *getTuneModeName()
 {
-  return tuneModeIdx < ITEM_COUNT(tuneModes) ? tuneModes[tuneModeIdx] : "";
+  return tuneModeIdx > TUNE_STEP && tuneModeIdx < ITEM_COUNT(tuneModes) ? tuneModes[tuneModeIdx] : "";
 }
 
 // More submenu
