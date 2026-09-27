@@ -2,6 +2,7 @@
 #include "Storage.h"
 #include "Themes.h"
 #include "Menu.h"
+#include "KrFm.h"
 #include <LittleFS.h>
 #include "nvs_flash.h"
 
@@ -47,7 +48,7 @@ bool prefsAreWritten()
 void prefsInvalidate()
 {
   static const char *sections[] =
-  { "settings", "memories", "bands", "network", 0 };
+  { "settings", "memories", "bands", "stations", "network", 0 };
 
   // Clear all applicable sections
   for(int j = 0 ; sections[j] ; ++j)
@@ -172,6 +173,7 @@ void prefsSave(uint32_t items)
     prefs.putUChar("Volume",   volume);            // Current volume
     prefs.putUChar("Band",     bandIdx);           // Current band
     prefs.putUChar("WiFiMode", wifiModeIdx);       // WiFi connection mode
+    prefs.putUChar("TuneMode", tuneModeIdx);       // VFO tuning mode
 
     // Save additional global settings
     prefs.putUShort("Brightness", currentBrt);     // Brightness
@@ -195,6 +197,7 @@ void prefsSave(uint32_t items)
                                   ((uint32_t)currentSquelch[USB] << 16) |
                                   ((uint32_t)currentSquelch[AM] << 24)); // Squelch
     prefs.putUChar("FmRegion",    FmRegionIdx);    // FM region
+    prefs.putUChar("KrArea",      krFmManualRegion()); // Korean FM area override
     prefs.putUChar("FmStereo",    fmStereoIdx);    // FM stereo mode
     prefs.putUChar("UILayout",    uiLayoutIdx);    // UI Layout
     prefs.putUChar("BLEMode",     bleModeIdx);     // Bluetooth mode
@@ -254,6 +257,8 @@ bool prefsLoad(uint32_t items)
     volume         = prefs.getUChar("Volume", volume);          // Current volume
     bandIdx        = prefs.getUChar("Band", bandIdx);           // Current band
     wifiModeIdx    = prefs.getUChar("WiFiMode", wifiModeIdx);   // WiFi connection mode
+    tuneModeIdx    = prefs.getUChar("TuneMode", TUNE_STEP); // VFO tuning mode
+    if(tuneModeIdx > TUNE_ETM) tuneModeIdx = TUNE_STEP;
     currentBrt     = prefs.getUShort("Brightness", currentBrt); // Brightness
     FmAgcIdx       = prefs.getUChar("FmAGC", FmAgcIdx);         // FM AGC/ATTN
     AmAgcIdx       = prefs.getUChar("AmAGC", AmAgcIdx);         // AM AGC/ATTN
@@ -279,6 +284,7 @@ bool prefsLoad(uint32_t items)
     currentSquelch[USB] = (squelch >> 16) & 0xff;
     currentSquelch[AM]  = (squelch >> 24) & 0xff;
     FmRegionIdx    = prefs.getUChar("FmRegion", FmRegionIdx);   // FM region
+    krFmSetManualRegion(prefs.getUChar("KrArea", KR_FM_AUTO));   // Korean FM area override
     fmStereoIdx    = prefs.getUChar("FmStereo", fmStereoIdx);   // FM stereo mode
     uiLayoutIdx    = prefs.getUChar("UILayout", uiLayoutIdx);   // UI Layout
     bleModeIdx     = prefs.getUChar("BLEMode", bleModeIdx);     // Bluetooth mode

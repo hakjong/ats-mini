@@ -7,6 +7,7 @@
 #include "Splash.h"
 #include "TcpMode.h"
 #include "Ota.h"
+#include "Stations.h"
 
 #include <WiFi.h>
 #include <WiFiMulti.h>
@@ -17,10 +18,18 @@
 #include <ESPmDNS.h>
 #include <LittleFS.h>
 #include <time.h>
+#include <ctype.h>
+#include <atomic>
+#include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
+#include <freertos/task.h>
 
 #define CONNECT_TIME  3000  // Time of inactivity to start connecting WiFi
 #define WIFI_MULTI_TOTAL_TIMEOUT  30000
+#define NTP_SYNC_TIMEOUT  10000
 #define SPLASH_MAX_FILE_SIZE (512U * 1024U)
+#define BACKUP_MAX_FILE_SIZE (16U * 1024U)
+#define MEMORY_NAME_SIZE sizeof(((Memory *)nullptr)->name)
 
 #ifndef WIFI_POWER_LEVEL
 #define WIFI_POWER_LEVEL WIFI_POWER_17dBm
@@ -40,6 +49,31 @@ static const int   apClients = 3;       // Maximum simultaneous connected client
 static bool itIsTimeToWiFi = false; // TRUE: Need to connect to WiFi
 static uint32_t connectTime = 0;
 
+enum NetAction : uint8_t { NET_STOP, NET_INIT, NET_SYNC_ONCE, NET_REFRESH };
+
+struct NetRequest
+{
+  NetAction action;
+  uint8_t mode;
+  uint32_t generation;
+};
+
+struct NetEvent
+{
+  uint32_t generation;
+  uint32_t epoch;
+  uint32_t duration;
+  char line1[96];
+  char line2[96];
+};
+
+static QueueHandle_t netRequests = nullptr;
+static QueueHandle_t netEvents = nullptr;
+static std::atomic<uint32_t> netGeneration{0};
+static std::atomic<uint32_t> netCompleted{0};
+static std::atomic<bool> ntpHasTime{false};
+static std::atomic<NetAction> netAction{NET_STOP};
+
 // Settings
 String loginUsername = "";
 String loginPassword = "";
@@ -53,7 +87,12 @@ WiFiUDP ntpUDP;
 NTPClient ntpClient(ntpUDP, "pool.ntp.org");
 
 static bool wifiInitAP();
-static bool wifiConnect();
+static bool wifiConnect(uint32_t generation);
+static void wifiStopHardware();
+static void netWorker(void *parameter);
+static bool netQueue(NetAction action, uint8_t mode = NET_OFF);
+static void netPost(uint32_t generation, const char *line1 = nullptr,
+                    const char *line2 = nullptr, uint32_t duration = 2000, uint32_t epoch = 0);
 static void webInit();
 static void wifiRegisterPowerLevelCallback();
 static void wifiPowerLevelOnEvent(WiFiEvent_t event);
@@ -66,6 +105,9 @@ static void webUploadFirmwareComplete(AsyncWebServerRequest *request);
 static void webUpdatePage(AsyncWebServerRequest *request, const OtaStatus &status = otaStatus(), int code = 0);
 static void webUploadFirmware(AsyncWebServerRequest *request, const String &filename,
                               size_t index, uint8_t *data, size_t len, bool final);
+static void webRestoreComplete(AsyncWebServerRequest *request);
+static void webUploadBackup(AsyncWebServerRequest *request, const String &filename,
+                            size_t index, uint8_t *data, size_t len, bool final);
 static bool webParseUTCDateTime(const String &text, uint32_t *epoch);
 
 static const String webInputField(const String &name, const String &value, bool pass = false);
@@ -75,8 +117,18 @@ static String webNavigation(const char *activePage);
 static const String webUtcOffsetSelector();
 static const String webThemeSelector();
 static const String webRadioPage();
+static const String webFavoritePage();
 static const String webMemoryPage();
+static const String webBackupPage(const String &message = "");
+static const String webBackupYaml();
 static const String webConfigPage();
+
+struct BackupUploadState
+{
+  String contents;
+  bool tooLarge;
+  bool invalidFile;
+};
 
 struct SplashUploadState
 {
@@ -93,6 +145,46 @@ static bool webIsAuthenticated(AsyncWebServerRequest *request)
 //
 // Delayed WiFi connection
 //
+static bool netQueue(NetAction action, uint8_t mode)
+{
+  if(!netRequests)
+  {
+    netRequests = xQueueCreate(1, sizeof(NetRequest));
+    netEvents = xQueueCreate(6, sizeof(NetEvent));
+    if(!netRequests || !netEvents ||
+       xTaskCreatePinnedToCore(netWorker, "network", 12288, nullptr, 1, nullptr, 0) != pdPASS)
+    {
+      if(netRequests) vQueueDelete(netRequests);
+      if(netEvents) vQueueDelete(netEvents);
+      netRequests = netEvents = nullptr;
+      statusShow("WiFi task failed");
+      return false;
+    }
+  }
+
+  NetRequest request = { action, mode, netGeneration.fetch_add(1) + 1 };
+  netAction.store(action);
+  xQueueOverwrite(netRequests, &request);
+  return true;
+}
+
+static void netPost(uint32_t generation, const char *line1, const char *line2,
+                    uint32_t duration, uint32_t epoch)
+{
+  NetEvent event = {};
+  event.generation = generation;
+  event.epoch = epoch;
+  event.duration = duration;
+  strlcpy(event.line1, line1 ? line1 : "", sizeof(event.line1));
+  strlcpy(event.line2, line2 ? line2 : "", sizeof(event.line2));
+  if(xQueueSend(netEvents, &event, 0) != pdTRUE)
+  {
+    NetEvent discarded;
+    xQueueReceive(netEvents, &discarded, 0);
+    xQueueSend(netEvents, &event, 0);
+  }
+}
+
 void netRequestConnect()
 {
   connectTime = millis();
@@ -102,6 +194,19 @@ void netRequestConnect()
 void netTickTime()
 {
   otaTick();
+
+  NetEvent event;
+  while(netEvents && xQueueReceive(netEvents, &event, 0) == pdTRUE)
+  {
+    if(event.generation != netGeneration.load()) continue;
+    if(event.epoch)
+    {
+      clockSetEpoch(event.epoch);
+      ntpHasTime.store(clockAvailable());
+    }
+    if(event.line1[0] || event.line2[0] || event.duration == 0)
+      statusShow(event.line1, event.line2, event.duration);
+  }
 
   // Connect to WiFi if requested
   if(itIsTimeToWiFi && ((millis() - connectTime) > CONNECT_TIME))
@@ -146,8 +251,23 @@ char *getWiFiIPAddress()
 void netStop()
 {
   tcpStop();
+  if(!netRequests)
+  {
+    wifiStopHardware();
+    return;
+  }
+  if(!netQueue(NET_STOP)) return;
+  uint32_t generation = netGeneration.load();
+  // Called before CPU sleep: wait until the radio has actually stopped.
+  uint32_t start = millis();
+  while(netCompleted.load() < generation && millis() - start < 10000) delay(10);
+}
+
+static void wifiStopHardware()
+{
   wifi_mode_t mode = WiFi.getMode();
 
+  ntpClient.end();
   MDNS.end();
 
   // If network connection up, shut it down
@@ -162,82 +282,36 @@ void netStop()
 }
 
 //
-// Initialize WiFi network and services
+// Start WiFi initialization without delaying the receiver UI.
 //
 void netInit(uint8_t netMode)
 {
-  // Always disable WiFi first
-  netStop();
-  wifiRegisterPowerLevelCallback();
-
-  switch(netMode)
-  {
-    case NET_OFF:
-      // Do not initialize WiFi if disabled
-      return;
-    case NET_AP_ONLY:
-      // Start WiFi access point if requested
-      WiFi.mode(WIFI_AP);
-      wifiInitAP();
-      break;
-    case NET_AP_CONNECT:
-      // Start WiFi access point if requested
-      WiFi.mode(WIFI_AP_STA);
-      wifiInitAP();
-      break;
-    default:
-      // No access point
-      WiFi.mode(WIFI_STA);
-      break;
-  }
-
-  // Initialize WiFi and try connecting to a network
-  if(netMode>NET_AP_ONLY && wifiConnect())
-  {
-    // NTP time updates will happen every 5 minutes
-    ntpClient.setUpdateInterval(5*60*1000);
-
-    // Get NTP time from the network
-    clockReset();
-    for(int j=0 ; j<10 ; j++)
-      if(ntpSyncTime()) break; else delay(500);
-
-    // Start the result timeout after the blocking time synchronization.
-    if(netMode!=NET_SYNC)
-      statusShow(
-        ("Connected to WiFi network (" + WiFi.SSID() + ")").c_str(),
-        ("IP : " + WiFi.localIP().toString() + " or atsmini.local").c_str()
-      );
-    else
-      statusShow(nullptr);
-  }
-  else if(netMode==NET_AP_ONLY || netMode==NET_AP_CONNECT)
-  {
-    // Show the access point details when it is the available connection.
-    statusShow(
-      ("Use Access Point " + String(apSSID)).c_str(),
-      ("IP : " + WiFi.softAPIP().toString() + " or atsmini.local").c_str()
-    );
-  }
+  tcpStop();
+  if(netMode == NET_OFF && !netRequests) return;
+  if(netMode != NET_OFF)
+    statusShow(netMode == NET_AP_ONLY ? "Starting access point..." : "Connecting to WiFi network...", nullptr, 0);
   else
-    statusShow("Connecting to WiFi network...", "No WiFi connection");
+    statusShow(nullptr);
+  netQueue(NET_INIT, netMode);
+}
 
-  // If only connected to sync...
-  if(netMode==NET_SYNC)
+// Synchronize once while the saved WiFi mode remains Off.
+void netSyncTimeOnce()
+{
+  if(wifiModeIdx != NET_OFF)
   {
-    // Drop network connection
-    WiFi.disconnect(true);
-    WiFi.mode(WIFI_MODE_NULL);
+    statusShow("Set Wi-Fi mode to Off");
+    return;
   }
-  else
-  {
-    // Initialize web server for remote configuration
-    webInit();
+  statusShow("Connecting to WiFi network...", nullptr, 0);
+  netQueue(NET_SYNC_ONCE);
+}
 
-    // Initialize mDNS
-    MDNS.begin("atsmini"); // Set the hostname to "atsmini.local"
-    MDNS.addService("http", "tcp", 80);
-  }
+void netCancelSyncOnce()
+{
+  if(netCompleted.load() == netGeneration.load() || netAction.load() != NET_SYNC_ONCE) return;
+  statusShow(nullptr);
+  netQueue(NET_STOP);
 }
 
 //
@@ -245,7 +319,7 @@ void netInit(uint8_t netMode)
 //
 bool ntpIsAvailable()
 {
-  return(ntpClient.isTimeSet());
+  return(ntpHasTime.load());
 }
 
 //
@@ -253,14 +327,112 @@ bool ntpIsAvailable()
 //
 bool ntpSyncTime()
 {
-  if(WiFi.status()==WL_CONNECTED)
-  {
-    ntpClient.update();
-
-    if(ntpClient.isTimeSet())
-      return(clockSetEpoch(ntpClient.getEpochTime()));
-  }
+  if(WiFi.status() == WL_CONNECTED && netCompleted.load() == netGeneration.load()) netQueue(NET_REFRESH);
   return(false);
+}
+
+static uint32_t netGetNtp(uint32_t generation, bool fresh)
+{
+  ntpClient.begin();
+  uint32_t start = millis();
+  for(uint8_t attempt = 0; attempt < 10 && millis() - start < NTP_SYNC_TIMEOUT; ++attempt)
+  {
+    if(generation != netGeneration.load()) break;
+    bool updated = fresh ? ntpClient.forceUpdate() : ntpClient.update();
+    if(updated || (!fresh && ntpClient.isTimeSet()))
+      return ntpClient.getEpochTime();
+    delay(500);
+  }
+  return 0;
+}
+
+static void netWorker(void *parameter)
+{
+  (void)parameter;
+  NetRequest request;
+  while(xQueueReceive(netRequests, &request, portMAX_DELAY) == pdTRUE)
+  {
+    if(request.generation != netGeneration.load()) continue;
+
+    if(request.action == NET_REFRESH)
+    {
+      if(WiFi.status() == WL_CONNECTED)
+      {
+        ntpClient.update();
+        if(ntpClient.isTimeSet())
+          netPost(request.generation, nullptr, nullptr, 2000, ntpClient.getEpochTime());
+      }
+    }
+    else
+    {
+      wifiStopHardware();
+      if(request.action != NET_STOP && !(request.action == NET_INIT && request.mode == NET_OFF))
+      {
+        wifiRegisterPowerLevelCallback();
+        uint8_t mode = request.action == NET_SYNC_ONCE ? NET_SYNC : request.mode;
+        if(mode == NET_AP_ONLY || mode == NET_AP_CONNECT)
+        {
+          WiFi.mode(mode == NET_AP_ONLY ? WIFI_AP : WIFI_AP_STA);
+          wifiInitAP();
+        }
+        else WiFi.mode(WIFI_STA);
+
+        bool connected = mode > NET_AP_ONLY && wifiConnect(request.generation);
+        if(request.generation != netGeneration.load())
+        {
+          wifiStopHardware();
+          continue;
+        }
+
+        if(connected)
+        {
+          ntpClient.setUpdateInterval(5 * 60 * 1000);
+          netPost(request.generation, "Syncing time...", nullptr, 0);
+          uint32_t epoch = netGetNtp(request.generation, request.action == NET_SYNC_ONCE);
+          if(request.generation != netGeneration.load())
+          {
+            wifiStopHardware();
+            continue;
+          }
+          if(epoch) netPost(request.generation, nullptr, nullptr, 2000, epoch);
+          if(mode == NET_SYNC)
+          {
+            wifiStopHardware();
+            netPost(request.generation,
+                    request.action == NET_SYNC_ONCE ? (epoch ? "Time synchronized" : "NTP sync failed") : nullptr,
+                    nullptr, request.action == NET_SYNC_ONCE ? 2000 : 0);
+          }
+          else
+            netPost(request.generation,
+                    ("Connected to WiFi network (" + WiFi.SSID() + ")").c_str(),
+                    ("IP : " + WiFi.localIP().toString() + " or atsmini.local").c_str());
+        }
+        else if(mode == NET_SYNC)
+        {
+          wifiStopHardware();
+          netPost(request.generation, request.action == NET_SYNC_ONCE ? "WiFi connection failed" : "No WiFi connection");
+        }
+        else if(mode == NET_AP_ONLY || mode == NET_AP_CONNECT)
+          netPost(request.generation, ("Use Access Point " + String(apSSID)).c_str(),
+                  ("IP : " + WiFi.softAPIP().toString() + " or atsmini.local").c_str());
+        else
+          netPost(request.generation, "No WiFi connection");
+
+        if(mode != NET_SYNC && request.generation == netGeneration.load())
+        {
+          webInit();
+          MDNS.begin("atsmini");
+          MDNS.addService("http", "tcp", 80);
+        }
+      }
+    }
+
+    if(request.generation == netGeneration.load())
+    {
+      netCompleted.store(request.generation);
+    }
+  }
+  vTaskDelete(nullptr);
 }
 
 static void wifiRegisterPowerLevelCallback()
@@ -300,16 +472,17 @@ static bool wifiInitAP()
 //
 // Connect to a WiFi network
 //
-static bool wifiConnect()
+static bool wifiConnect(uint32_t generation)
 {
   // Clean credentials
   wifiMulti.APlistClean();
 
   // Get the preferences
-  prefs.begin("network", true, STORAGE_PARTITION);
-  loginUsername = prefs.getString("loginusername", "");
-  loginPassword = prefs.getString("loginpassword", "");
-  wifiScanHidden = prefs.getBool("wifiscanhidden", false);
+  Preferences wifiPrefs;
+  wifiPrefs.begin("network", true, STORAGE_PARTITION);
+  loginUsername = wifiPrefs.getString("loginusername", "");
+  loginPassword = wifiPrefs.getString("loginpassword", "");
+  wifiScanHidden = wifiPrefs.getBool("wifiscanhidden", false);
 
   // Try connecting to known WiFi networks
   for(int j=0 ; (j<3) ; j++)
@@ -318,37 +491,27 @@ static bool wifiConnect()
     sprintf(nameSSID, "wifissid%d", j+1);
     sprintf(namePASS, "wifipass%d", j+1);
 
-    String ssid = prefs.getString(nameSSID, "");
-    String password = prefs.getString(namePASS, "");
+    String ssid = wifiPrefs.getString(nameSSID, "");
+    String password = wifiPrefs.getString(namePASS, "");
 
     if(ssid != "")
       wifiMulti.addAP(ssid.c_str(), password.c_str());
   }
 
   // Done with preferences
-  prefs.end();
+  wifiPrefs.end();
 
-  statusShow("Connecting to WiFi network...", nullptr, 0);
-  drawScreen();
-
-  consumeAbortPending();
   wl_status_t wifiStatus = WL_NO_SSID_AVAIL;
   uint32_t start = millis();
-  while(((millis() - start)<WIFI_MULTI_TOTAL_TIMEOUT) && (wifiStatus!=WL_CONNECTED))
+  while((millis() - start < WIFI_MULTI_TOTAL_TIMEOUT) && wifiStatus != WL_CONNECTED &&
+        generation == netGeneration.load())
   {
     wifiStatus = (wl_status_t)wifiMulti.run(5000, wifiScanHidden);
-
-    if(consumeAbortPending())
-    {
-      WiFi.disconnect();
-      break;
-    }
-
-    if((wifiStatus!=WL_CONNECTED) && ((millis() - start)<WIFI_MULTI_TOTAL_TIMEOUT))
+    if(wifiStatus != WL_CONNECTED && millis() - start < WIFI_MULTI_TOTAL_TIMEOUT)
       delay(1000);
   }
 
-  return(wifiStatus == WL_CONNECTED);
+  return(wifiStatus == WL_CONNECTED && generation == netGeneration.load());
 }
 
 //
@@ -360,9 +523,26 @@ static void webInit()
     request->send(200, "text/html", webRadioPage());
   });
 
+  server.on("/favorite", HTTP_ANY, [] (AsyncWebServerRequest *request) {
+    if(!webIsAuthenticated(request)) return request->requestAuthentication();
+    request->send(200, "text/html", webFavoritePage());
+  });
+
   server.on("/memory", HTTP_ANY, [] (AsyncWebServerRequest *request) {
     if(!webIsAuthenticated(request)) return request->requestAuthentication();
     request->send(200, "text/html", webMemoryPage());
+  });
+
+  server.on("/backup/download", HTTP_GET, [] (AsyncWebServerRequest *request) {
+    if(!webIsAuthenticated(request)) return request->requestAuthentication();
+    AsyncWebServerResponse *response = request->beginResponse(200, "application/yaml", webBackupYaml());
+    response->addHeader("Content-Disposition", "attachment; filename=ats-mini-memory.yaml");
+    request->send(response);
+  });
+
+  server.on("/backup", HTTP_GET, [] (AsyncWebServerRequest *request) {
+    if(!webIsAuthenticated(request)) return request->requestAuthentication();
+    request->send(200, "text/html", webBackupPage());
   });
 
   server.on("/config", HTTP_ANY, [] (AsyncWebServerRequest *request) {
@@ -382,6 +562,7 @@ static void webInit()
 
   // This method saves configuration form contents
   server.on("/setconfig", HTTP_POST, webSetConfig, webUploadSplash);
+  server.on("/backup/restore", HTTP_POST, webRestoreComplete, webUploadBackup);
 
   // Register subpaths first: the server also matches /update to /update/... .
   server.on("/update/upload", HTTP_POST, webUploadFirmwareComplete, webUploadFirmware);
@@ -703,7 +884,9 @@ static String webNavigation(const char *activePage)
   static const struct { const char *name; const char *path; } pages[] =
   {
     {"Status", "/"},
+    {"Favorite", "/favorite"},
     {"Memory", "/memory"},
+    {"Backup", "/backup"},
     {"Config", "/config"},
     {"Update", "/update"},
   };
@@ -856,7 +1039,7 @@ static const String webRadioPage()
 );
 }
 
-static const String webMemoryPage()
+static const String webFavoritePage()
 {
   String items = "";
 
@@ -878,9 +1061,283 @@ static const String webMemoryPage()
   }
 
   return webPage(
-"<H1>ATS-Mini Pocket Receiver Memory</H1>" + webNavigation("/memory") +
+"<H1>ATS-Mini Pocket Receiver Favorite</H1>" + webNavigation("/favorite") +
 "<TABLE COLUMNS=2>" + items + "</TABLE>"
 );
+}
+
+static const String webMemoryPage()
+{
+  static const char *const groupNames[] = { "FM", "MW", "SW" };
+  String data = "const groups={";
+  uint16_t frequencies[256];
+
+  for(uint8_t group = 0; group < STATION_GROUP_COUNT; ++group)
+  {
+    uint16_t count = 0;
+    stationsReadGroup(group, frequencies, &count);
+    if(group) data += ',';
+    data += String(groupNames[group]) + ":[";
+    for(uint16_t i = 0; i < count; ++i)
+    {
+      if(i) data += ',';
+      data += frequencies[i];
+    }
+    data += ']';
+  }
+  data += "};";
+
+  return webPage(
+"<H1>ATS-Mini Pocket Receiver Memory</H1>" + webNavigation("/memory") +
+"<TABLE COLUMNS=2 ID='memory'></TABLE>"
+"<SCRIPT>" + data +
+"const table=document.getElementById('memory');"
+"for(const [name,list] of Object.entries(groups)){"
+  "table.insertAdjacentHTML('beforeend',`<tr><th colspan='2' class='HEADING'>${name} Memory (${list.length})</th></tr>`);"
+  "if(!list.length)table.insertAdjacentHTML('beforeend',\"<tr><td colspan='2' class='CENTER'>--- Empty ---</td></tr>\");"
+  "list.forEach((frequency,index)=>{"
+    "const text=name==='FM'?(frequency/100).toFixed(2)+' MHz':frequency+' kHz';"
+    "table.insertAdjacentHTML('beforeend',`<tr><td class='LABEL' width='10%'>${index+1}</td><td>${text}</td></tr>`);"
+  "});"
+"}"
+"</SCRIPT>"
+);
+}
+
+static const String webBackupPage(const String &message)
+{
+  String status = message.length()? "<P CLASS='CENTER'>" + message + "</P>" : "";
+  return webPage(
+"<H1>ATS-Mini Memory Backup</H1>" + webNavigation("/backup") + status +
+"<TABLE COLUMNS=2>"
+  "<TR><TH COLSPAN=2 CLASS='HEADING'>Download</TH></TR>"
+  "<TR><TD COLSPAN=2 CLASS='CENTER'>Downloads all Favorite slots and FM/MW/SW Memory frequencies.</TD></TR>"
+  "<TR><TD COLSPAN=2 CLASS='CENTER'><A HREF='/backup/download' DOWNLOAD>Download YAML</A></TD></TR>"
+"</TABLE>"
+"<FORM ACTION='/backup/restore' METHOD='POST' ENCTYPE='multipart/form-data'>"
+  "<TABLE COLUMNS=2>"
+  "<TR><TH COLSPAN=2 CLASS='HEADING'>Restore</TH></TR>"
+  "<TR><TD CLASS='LABEL'>YAML File</TD><TD><INPUT TYPE='FILE' NAME='backup' ACCEPT='.yaml,.yml' REQUIRED></TD></TR>"
+  "<TR><TD COLSPAN=2 CLASS='CENTER'><SMALL>Restoring replaces all Favorite and Memory entries.</SMALL></TD></TR>"
+  "<TR><TH COLSPAN=2 CLASS='HEADING'><INPUT TYPE='SUBMIT' VALUE='Restore'></TH></TR>"
+  "</TABLE>"
+"</FORM>"
+);
+}
+
+static void appendHex(String &result, const char *data, size_t length)
+{
+  static const char hex[] = "0123456789ABCDEF";
+  for(size_t i = 0; i < length; ++i)
+  {
+    uint8_t value = static_cast<uint8_t>(data[i]);
+    result += hex[value >> 4];
+    result += hex[value & 0x0F];
+  }
+}
+
+static const String webBackupYaml()
+{
+  static const char *const groupNames[] = { "fm", "mw", "sw" };
+  String result;
+  result.reserve(16384);
+  result = "version: 1\nfavorites:\n";
+  for(uint8_t i = 0; i < MEMORY_COUNT; ++i)
+  {
+    result += "  - [" + String(i + 1) + ", " + memories[i].band + ", " + memories[i].freq +
+              ", " + memories[i].mode + ", \"";
+    appendHex(result, memories[i].name, sizeof(memories[i].name));
+    result += "\"]\n";
+  }
+  result += "memory:\n";
+  uint16_t frequencies[256];
+  for(uint8_t group = 0; group < STATION_GROUP_COUNT; ++group)
+  {
+    uint16_t count = 0;
+    stationsReadGroup(group, frequencies, &count);
+    result += "  " + String(groupNames[group]) + ": [";
+    for(uint16_t i = 0; i < count; ++i)
+    {
+      if(i) result += ", ";
+      result += frequencies[i];
+    }
+    result += "]\n";
+  }
+  return result;
+}
+
+struct MemoryBackup
+{
+  Memory favorites[MEMORY_COUNT];
+  uint16_t counts[STATION_GROUP_COUNT];
+  uint16_t frequencies[STATION_GROUP_COUNT][256];
+};
+
+static bool decodeHexName(const char *hex, char *name)
+{
+  if(strlen(hex) != MEMORY_NAME_SIZE * 2) return false;
+  for(size_t i = 0; i < MEMORY_NAME_SIZE; ++i)
+  {
+    if(!isxdigit(hex[i * 2]) || !isxdigit(hex[i * 2 + 1])) return false;
+    char pair[3] = { hex[i * 2], hex[i * 2 + 1], 0 };
+    name[i] = strtoul(pair, nullptr, 16);
+  }
+  return true;
+}
+
+static bool parseFrequencyList(const String &line, uint16_t *frequencies, uint16_t *count)
+{
+  int start = line.indexOf('[');
+  int end = line.lastIndexOf(']');
+  if(start < 0 || end < start || line.substring(end + 1).length()) return false;
+  String values = line.substring(start + 1, end);
+  values.trim();
+  *count = 0;
+  while(values.length())
+  {
+    int comma = values.indexOf(',');
+    String value = comma < 0? values : values.substring(0, comma);
+    value.trim();
+    if(!value.length() || *count >= 256) return false;
+    char *tail;
+    unsigned long frequency = strtoul(value.c_str(), &tail, 10);
+    if(!frequency || frequency > UINT16_MAX || *tail) return false;
+    frequencies[(*count)++] = frequency;
+    if(comma < 0) break;
+    values = values.substring(comma + 1);
+    values.trim();
+  }
+  return true;
+}
+
+static bool parseBackup(const String &contents, MemoryBackup &backup)
+{
+  bool favoriteSeen[MEMORY_COUNT] = {};
+  bool groupSeen[STATION_GROUP_COUNT] = {};
+  bool versionSeen = false;
+  int offset = 0;
+
+  while(offset <= contents.length())
+  {
+    int next = contents.indexOf('\n', offset);
+    if(next < 0) next = contents.length();
+    String line = contents.substring(offset, next);
+    line.trim();
+    offset = next + 1;
+    if(!line.length() || line.startsWith("#") || line == "favorites:" || line == "memory:") continue;
+    if(line == "version: 1")
+    {
+      versionSeen = true;
+      continue;
+    }
+    if(line.startsWith("- ["))
+    {
+      unsigned int slot, band, mode;
+      unsigned long long frequency;
+      char nameHex[MEMORY_NAME_SIZE * 2 + 1] = {};
+      int consumed = 0;
+      if(sscanf(line.c_str(), "- [%u, %u, %llu, %u, \"%20[0-9A-Fa-f]\"]%n",
+                &slot, &band, &frequency, &mode, nameHex, &consumed) != 5 ||
+         consumed != line.length() || !slot || slot > MEMORY_COUNT || favoriteSeen[slot - 1] ||
+         band >= static_cast<unsigned int>(getTotalBands()) ||
+         mode >= static_cast<unsigned int>(getTotalModes()) || frequency > UINT32_MAX)
+        return false;
+      Memory &favorite = backup.favorites[slot - 1];
+      favorite.freq = frequency;
+      favorite.band = band;
+      favorite.mode = mode;
+      if(!decodeHexName(nameHex, favorite.name) ||
+         (favorite.freq && !isMemoryInBand(&bands[favorite.band], &favorite))) return false;
+      favoriteSeen[slot - 1] = true;
+      continue;
+    }
+
+    static const char *const groupNames[] = { "fm:", "mw:", "sw:" };
+    bool matched = false;
+    for(uint8_t group = 0; group < STATION_GROUP_COUNT; ++group)
+      if(line.startsWith(groupNames[group]))
+      {
+        if(groupSeen[group] || !parseFrequencyList(line, backup.frequencies[group], &backup.counts[group]))
+          return false;
+        groupSeen[group] = matched = true;
+        break;
+      }
+    if(!matched) return false;
+  }
+
+  if(!versionSeen) return false;
+  for(uint8_t i = 0; i < MEMORY_COUNT; ++i)
+    if(!favoriteSeen[i]) return false;
+  for(uint8_t group = 0; group < STATION_GROUP_COUNT; ++group)
+  {
+    if(!groupSeen[group]) return false;
+    if(!stationsValidateGroup(group, backup.frequencies[group], backup.counts[group])) return false;
+  }
+  return true;
+}
+
+static void webUploadBackup(AsyncWebServerRequest *request, const String &filename,
+                            size_t index, uint8_t *data, size_t len, bool)
+{
+  if(!webIsAuthenticated(request)) return;
+  if(!index)
+  {
+    BackupUploadState *state = new BackupUploadState;
+    if(!state) return;
+    state->tooLarge = false;
+    state->invalidFile = !filename.endsWith(".yaml") && !filename.endsWith(".yml");
+    state->contents.reserve(BACKUP_MAX_FILE_SIZE);
+    request->_tempObject = state;
+  }
+  BackupUploadState *state = static_cast<BackupUploadState *>(request->_tempObject);
+  if(!state || state->tooLarge || state->invalidFile) return;
+  if(index + len > BACKUP_MAX_FILE_SIZE)
+  {
+    state->tooLarge = true;
+    state->contents = "";
+    return;
+  }
+  for(size_t i = 0; i < len; ++i) state->contents += static_cast<char>(data[i]);
+}
+
+static void webRestoreComplete(AsyncWebServerRequest *request)
+{
+  if(!webIsAuthenticated(request)) return request->requestAuthentication();
+  BackupUploadState *state = static_cast<BackupUploadState *>(request->_tempObject);
+  request->_tempObject = nullptr;
+  if(!state) return request->send(400, "text/html", webBackupPage("No backup file uploaded."));
+  if(state->invalidFile)
+  {
+    delete state;
+    return request->send(400, "text/html", webBackupPage("Select a .yaml or .yml backup file."));
+  }
+  if(state->tooLarge)
+  {
+    delete state;
+    return request->send(413, "text/html", webBackupPage("The backup file must not exceed 16 KB."));
+  }
+
+  MemoryBackup *backup = static_cast<MemoryBackup *>(ps_calloc(1, sizeof(MemoryBackup)));
+  bool valid = backup && parseBackup(state->contents, *backup);
+  delete state;
+  if(!valid)
+  {
+    free(backup);
+    return request->send(400, "text/html", webBackupPage("Invalid ATS Mini memory backup."));
+  }
+
+  for(uint8_t group = 0; group < STATION_GROUP_COUNT; ++group)
+    if(!stationsWriteGroup(group, backup->frequencies[group], backup->counts[group]))
+    {
+      free(backup);
+      return request->send(500, "text/html", webBackupPage("Failed to restore Memory frequencies."));
+    }
+  memcpy(memories, backup->favorites, sizeof(backup->favorites));
+  prefs.begin("memories", false, STORAGE_PARTITION);
+  for(uint8_t i = 0; i < MEMORY_COUNT; ++i) prefsSaveMemory(i, false);
+  prefs.end();
+  free(backup);
+  request->send(200, "text/html", webBackupPage("Favorite and Memory restored successfully."));
 }
 
 const String webConfigPage()
@@ -1033,14 +1490,16 @@ static void webUpdatePage(AsyncWebServerRequest *request, const OtaStatus &statu
 "<H1>Firmware Update</H1>" + webNavigation("/update") +
 "<TABLE COLUMNS=1>"
 "<TR><TD CLASS='CENTER'>" + status.message + "</TD></TR>"
+"<!--"
 "<TR><TH CLASS='HEADING'>"
   "<FORM METHOD='POST' ACTION='/update'>"
   "<BUTTON TYPE='SUBMIT' NAME='action' VALUE='" + String(available? "install" : "check") + "' STYLE='padding: 0.5em 2em;'" +
     String(busy || complete? " DISABLED" : "") + ">" + (available? "Update" : "Check for updates") + "</BUTTON>"
   "</FORM>"
 "</TH></TR>"
+"-->"
 "<TR><TD CLASS='CENTER'>"
-  "<DETAILS><SUMMARY>Manual upload</SUMMARY>"
+  "<H3>Manual upload</H3>"
   "<FORM METHOD='POST' ACTION='/update/upload' ENCTYPE='multipart/form-data' ONSUBMIT='this.elements.size.value=this.elements.firmware.files[0].size;this.querySelector(\"button\").disabled=true;'>"
   // Send the size before the file so the first upload callback can read it.
   "<INPUT TYPE='HIDDEN' NAME='size'>"
@@ -1050,7 +1509,6 @@ static void webUpdatePage(AsyncWebServerRequest *request, const OtaStatus &statu
   "<BUTTON TYPE='SUBMIT' STYLE='padding: 0.5em 2em;'" + String(busy || complete? " DISABLED" : "") + ">Upload</BUTTON>"
   "</DIV>"
   "</FORM>"
-  "</DETAILS>"
 "</TD></TR>"
 "</TABLE>" + refresh
 );

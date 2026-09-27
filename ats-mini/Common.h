@@ -253,6 +253,8 @@ int8_t getWiFiStatus();
 char *getWiFiIPAddress();
 void netInit(uint8_t netMode);
 void netStop();
+void netSyncTimeOnce();
+void netCancelSyncOnce();
 bool ntpIsAvailable();
 bool ntpSyncTime();
 

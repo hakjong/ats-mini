@@ -7,6 +7,8 @@
 #include "Rotary.h"
 #include "Button.h"
 #include "Menu.h"
+#include "Stations.h"
+#include "Etm.h"
 #include "Draw.h"
 #include "Storage.h"
 #include "Themes.h"
@@ -72,7 +74,7 @@ int8_t SsbSoftMuteIdx = 4;              // Default SSB = 4, range = 0 to 32
 // Menu options
 uint8_t volume = DEFAULT_VOLUME;        // Volume, range = 0 (muted) - 63
 uint8_t currentSquelch[4] = {0};        // Squelch per mode: lower 7 bits = threshold, high bit selects SNR (1) vs RSSI (0)
-uint8_t FmRegionIdx = 0;                // FM Region
+uint8_t FmRegionIdx = FM_REGION_KR;     // FM Region
 
 uint16_t currentBrt = 130;              // Display brightness, range = 10 to 255 in steps of 5
 uint16_t currentSleep = DEFAULT_SLEEP;  // Display sleep timeout, range = 0 to 255 in steps of 5
@@ -615,6 +617,21 @@ bool doSeek(int16_t enc, int16_t enca)
 //
 bool doTune(int16_t enc)
 {
+  if(currentCmd == CMD_NONE && tuneModeIdx != TUNE_STEP)
+  {
+    uint16_t frequency = tuneModeIdx == TUNE_ETM ? etmNextFrequency(currentFrequency, enc) :
+                                                   stationsNextFrequency(currentFrequency, enc);
+    if(!frequency)
+    {
+      statusShow(tuneModeIdx == TUNE_ETM ? "No ETM stations" : "No Memory stations");
+      return true;
+    }
+    updateFrequency(frequency, true);
+    clearStationInfo();
+    identifyFrequency(currentFrequency + currentBFO / 1000);
+    return true;
+  }
+
   //
   // SSB tuning
   //
@@ -803,6 +820,9 @@ void loop()
   encCountAccel = tcp_direction? tcp_direction : encCountAccel;
   if(tcp_event & REMOTE_PREFS) prefsRequestSave(SAVE_ALL);
 
+  // User input cancels an in-progress one-shot NTP sync without blocking tuning.
+  if(encCount || pb1st.wasClicked || pb1st.wasShortPressed) netCancelSyncOnce();
+
   // Block encoder rotation when in the locked sleep mode
   if(encCount && sleepOn() && sleepModeIdx==SLEEP_LOCKED) encCount = encCountAccel = 0;
 
@@ -854,6 +874,10 @@ void loop()
       switch(currentCmd)
       {
         case CMD_NONE:
+          // Saved stations advance one entry per encoder detent.
+          needRedraw |= doTune(tuneModeIdx == TUNE_STEP ? encCountAccel : encCount);
+          prefsRequestSave(SAVE_CUR_BAND);
+          break;
         case CMD_SCAN:
           // Tuning
           needRedraw |= doTune(encCountAccel);
@@ -920,6 +944,11 @@ void loop()
           needRedraw = true;
         }
       }
+      else if(pb1st.wasShortPressed && menuHoldCloses(currentCmd))
+      {
+        currentCmd = CMD_NONE;
+        needRedraw = true;
+      }
       else if(clickHandler(currentCmd, pb1st.wasShortPressed))
       {
         // Command handled, redraw screen
@@ -953,7 +982,7 @@ void loop()
   if((currentTime - elapsedCommand) > ELAPSED_COMMAND)
   {
     // if(getCpuFrequencyMhz()!=80) setCpuFrequencyMhz(80);
-    if(currentCmd != CMD_NONE && currentCmd != CMD_SEEK && currentCmd != CMD_SCAN && currentCmd != CMD_MEMORY)
+    if(currentCmd != CMD_NONE && currentCmd != CMD_SEEK && currentCmd != CMD_SCAN && currentCmd != CMD_MEMORY && currentCmd != CMD_STATIONS)
     {
       currentCmd = CMD_NONE;
       needRedraw = true;

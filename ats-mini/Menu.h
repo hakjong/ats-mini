@@ -8,6 +8,7 @@
 
 // Band Types
 #define FM_BAND_TYPE  0
+#define FM_REGION_KR  2
 #define MW_BAND_TYPE  1
 #define SW_BAND_TYPE  2
 #define LW_BAND_TYPE  3
@@ -27,7 +28,11 @@
 #define CMD_MEMORY     0x1900 // |
 #define CMD_SEEK       0x1A00 // |
 #define CMD_SCAN       0x1B00 // |
-#define CMD_SQUELCH    0x1C00 //-+
+#define CMD_SQUELCH    0x1C00 // |
+#define CMD_STATIONS   0x1D00 // | Saved stations in the current band
+#define CMD_MORE       0x1E00 // | More submenu
+#define CMD_TUNING     0x1F00 // | Tuning mode submenu
+#define CMD_ETM_SCAN   0x1F80 //-+ ETM band scan
 #define CMD_SETTINGS   0x2000 //-SETTINGS MODE starts here
 #define CMD_BRT        0x2100 // |
 #define CMD_CAL        0x2200 // |
@@ -48,7 +53,8 @@
 #define CMD_DATETIME   0x3100 // |
 #define CMD_UPDATEFW   0x3200 // |
 #define CMD_FM_STEREO  0x3300 // |
-#define CMD_ABOUT      0x3400 //-+
+#define CMD_KR_AREA    0x3400 // |
+#define CMD_ABOUT      0x3500 //-+
 
 // UI Layouts
 #define UI_DEFAULT  0
@@ -57,6 +63,11 @@
 // Seek modes
 #define SEEK_DEFAULT  0
 #define SEEK_SCHEDULE 1
+
+// VFO tuning modes
+#define TUNE_STEP     0
+#define TUNE_STATIONS 1
+#define TUNE_ETM      2
 
 //
 // Data Types
@@ -91,6 +102,7 @@ extern const UTCOffset utcOffsets[];
 extern const char *bandModeDesc[];
 extern const FMRegion fmRegions[];
 extern int bandIdx;
+extern uint8_t tuneModeIdx;
 
 // These are menu commands
 static inline bool isMenuMode(uint16_t cmd)
@@ -107,6 +119,7 @@ static inline bool isSettingsMode(uint16_t cmd)
 uint8_t seekMode(bool toggle = false);
 void drawSideBar(uint16_t cmd, int x, int y, int sx);
 bool doSideBar(uint16_t cmd, int16_t enc, int16_t enca);
+bool menuHoldCloses(uint16_t cmd);
 void doSelectDigit(int16_t enc);
 bool clickHandler(uint16_t cmd, bool shortPress);
 void selectBand(uint8_t idx, bool drawLoadingSSB = true);

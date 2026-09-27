@@ -34,9 +34,9 @@ Controls are implemented through the encoder knob:
 
 | Gesture                | Result                                                                |
 |------------------------|-----------------------------------------------------------------------|
-| Rotate                 | Tunes frequency, navigates menu, adjusts parameters.                  |
+| Rotate                 | Tunes saved stations or steps frequency, navigates menu, adjusts parameters. |
 | Click (<0.5 sec)       | Opens menu, selects.                                                  |
-| Short press (>0.5 sec) | Volume shortcut in VFO mode, context-dependent action in other modes. |
+| Short press (0.5-2 sec) | Closes menus unless that screen uses the press for an action; opens Volume in VFO mode. |
 | Long press (>2 sec)    | Sleep on/off.                                                         |
 | Press and rotate       | Direct frequency input mode, fine tuning in Seek mode.                |
 
@@ -51,19 +51,27 @@ Controls are implemented through the encoder knob:
 
 The menu can be invoked by clicking the encoder button and is closed automatically after a couple of seconds.
 
-* **Mode** - FM (only available on the VHF band); LSB, USB, AM (available on other bands). The receiver doesn't support the NFM mode (on any band, including the CB) due to limitations of the SI4732 chip.
 * **Band** - List of [Bands](#bands-table).
 * **Volume** - 0 (silent) ... 63 (max). The headphone volume level can be low (compared to the built-in speaker) due to limitation of the initial hardware design. Use short press to mute/unmute.
-* **Step** - Tuning step (not every step is available on every band and mode).
-* **Seek** - Seek up or down on AM/FM, normal tuning on LSB/USB (hardware seek function is not supported by SI4732 on SSB). Rotate or click the encoder to stop the seek. Use short press to switch between the seek and [schedule](#schedule) modes. Use press and rotate for manual fine tuning.
-* **Scan** - Scan a frequency range and plot the RSSI (S) and SNR (N) graphs (unfortunately, these metrics are almost meaningless in SSB modes due to SI4732 patch limitations). Both graphs are normalized to 0.0 - 1.0 range. While the Scan mode is active, short press the encoder for 0.5 seconds to rescan. To abort a running scan process click or rotate the encoder.
-* **Memory** - 99 slots to store favorite frequencies. Short press (>0.5 sec) on an empty slot to store the current frequency, short press to erase a slot, switch between stored slots by rotating the encoder, click to exit the menu. It is also possible to edit the memory slots via [remote control](remote.md) or via the [web based tool](memory.md) in Google Chrome.
+* **TuneMode** - Opens a submenu to choose **Step** (default), **Memory**, or **ETM**. Rotate to choose and click to apply. Step moves by the selected frequency step. Memory moves between saved frequencies within the current band, while ETM moves between frequencies found by the most recent ETM Scan for that band. Both lists wrap at their ends; if the selected list is empty, rotating does not change frequency. The choice and ETM lists are saved across power cycles. Seek, Scan, and direct frequency input keep their existing behavior.
+* **Seek** - Shown in the main menu only when TuneMode is Step. Seek up or down on AM/FM, normal tuning on LSB/USB (hardware seek function is not supported by SI4732 on SSB). Rotate or click the encoder to stop the seek. Use short press to switch between the seek and [schedule](#schedule) modes. Use press and rotate for manual fine tuning.
+* **Scan** - Shown in the main menu only when TuneMode is Step. Scan a frequency range and plot the RSSI (S) and SNR (N) graphs (unfortunately, these metrics are almost meaningless in SSB modes due to SI4732 patch limitations). Both graphs are normalized to 0.0 - 1.0 range. While the Scan mode is active, short press the encoder for 0.5 seconds to rescan. To abort a running scan process click or rotate the encoder.
+* **Memory** - The current band's view starts with **Add Current**, **ATS**, and **Clear**, followed by saved frequencies in ascending order. When the menu opens on a saved frequency, that frequency is selected automatically. FM, MW, and SW each share one saved list across all bands of the same type, while browsing, deleting, clearing, and ATS operate only on frequencies within the current band. Use Add Current to save the currently tuned frequency; a persistent message reports whether it was added, already saved, the list is full, or saving failed. Rotate the encoder to browse and tune saved frequencies. Short press (>0.5 sec) on ATS, then press again to confirm replacing the current band's frequencies with stations found in a whole-band scan; saved frequencies for other bands in the same list are preserved. The left panel shows the count and five most recently added frequencies during scanning. Click or rotate to cancel a running scan and restore the Memory list from before the scan. The menu closes after Add Current or a scan completes successfully. Short press on Clear or a saved frequency, then short press again to confirm deletion; click or rotate to cancel. The lists are saved in flash and survive power off. Scanning uses the receiver's AM/FM seek function and is unavailable in LSB/USB modes; reception and antenna conditions affect which stations are found. Each shared list holds up to 256 stations; when full, existing frequencies are kept and new ones are skipped. Saved per-band lists from earlier firmware must be rescanned. With FM Region set to KR, saved FM stations identify the receiving area automatically. ATS or Clear returns any manually selected KR Area to Auto, so a subsequent scan uses automatic identification. Guide names are shown for that area and adjacent areas only. In Auto, if the scan cannot establish an area or distinguish broadcasters sharing a frequency, no guide name is shown. Received RDS names still take priority.
+* **ETM Scan** - Replaces the current band's ETM list with stations found in a whole-band AM/FM scan, then selects ETM in TuneMode. The scan results are saved in flash and survive power off. Click or rotate during scanning to cancel and keep the previous ETM list. ETM Scan is unavailable in LSB/USB modes and holds up to 256 frequencies per band.
+* **Favorite** - 99 slots to store favorite frequencies. Short press (>0.5 sec) on an empty slot to store the current frequency, short press to erase a slot, switch between stored slots by rotating the encoder, click to exit the menu. It is also possible to edit the favorite slots via [remote control](remote.md) or via the [web based tool](memory.md) in Google Chrome.
+* **Settings** - Settings submenu.
+* **---More---** - Opens the receiver controls listed below.
+
+## More submenu
+
 * **Squelch** - mute the speaker when the selected RSSI (dBuV) or SNR (dB) level is lower than the defined threshold. The setting is saved separately for each mode (FM, LSB, USB, AM). When Off, short press the encoder button to switch between RSSI and SNR. When enabled, short press turns squelch Off. Unlikely to work in SSB mode.
 * **Bandwidth** - Selects the bandwidth of the channel filter.
 * **AGC/ATTN** - Automatic Gain Control (on/off) or Attenuation level. The attenuator is not applicable to SSB mode.
 * **AVC** - Sets the maximum gain for automatic volume control (not applicable to FM mode).
 * **SoftMute** - Sets softmute max attenuation (only applicable to AM/SSB).
-* **Settings** - Settings submenu.
+* **Mode** - FM (only available on the VHF band); LSB, USB, AM (available on other bands). The receiver doesn't support the NFM mode (on any band, including the CB) due to limitations of the SI4732 chip.
+* **Step** - Tuning step (not every step is available on every band and mode).
+* **NTP Now** - With Wi-Fi set to Off, close the menu, temporarily connect to a saved network, synchronize the clock, and turn Wi-Fi off again. The receiver remains usable while it connects and synchronizes. Press or rotate the encoder to cancel. The saved Wi-Fi mode does not change.
 
 ## Settings menu
 
@@ -72,10 +80,11 @@ The menu can be invoked by clicking the encoder button and is closed automatical
 * **RDS** - Radio Data System options: PS - radio station name, CT - date and time, RT - text, PTY - genre, ALL (EU/US) - everything. RDS CT should contain UTC date and time, but some stations incorrectly transmit local or completely bogus values. The clock is synchronized from RDS only once. To synchronize it again, disable and re-enable RDS CT or switch the receiver off and on.
 * **UTC Offset** - Affects the displayed date and time. Please note that automatic DST transitions are not supported; the offset needs to be adjusted manually.
 * **Date/Time** - Set the UTC date and time with the encoder. Click to select the next field, or short press to set the clock and close the menu. A timeout closes the menu without changing the clock.
-* **FM Region** - FM de-emphasis time constant by region (50µs for EU/JP/AU and 70µs for the US).
+* **FM Region** - FM de-emphasis time constant by region (50µs for EU/JP/AU and KR, 75µs for the US). The default is KR. KR also enables offline Korean FM name lookup from a snapshot of the [Korean radio frequency list](https://namu.wiki/w/라디오%20주파수/대한민국). Planned, suspended, and closed stations are excluded. The list is bundled with the firmware; no Internet connection is needed on the radio. Names may be incomplete or outdated as broadcasters change frequencies.
+* **KR Area** - When FM Region is KR, choose Auto or select one of 22 Korean receiving areas for FM station names. When another FM Region is active, selecting KR Area shows a persistent reminder to select KR first. A manual choice is saved across power cycles and also permits names from adjacent areas. Clearing the FM Memory list or using ATS resets the choice to Auto.
 * **FM Stereo** - **Auto** lets the receiver blend down to mono on its own as the signal gets worse, **Mono** forces mono audio, trading the stereo image for less hiss on a weak station.
 * **Theme** - Color theme.
-* **UI Layout** - Alternative UI layouts. For now there is just one alternative UI with large S-meter and S/N-meter.
+* **UI Layout** - Alternative UI layouts. The default S-Meter layout has a large S-meter and S/N-meter.
 * **Zoom Menu** - Display the currently selected menu item using a larger font (accessibility option).
 * **Scroll Dir.** - Menu scroll direction for clockwise encoder turn.
 * **Sleep** - Automatic sleep interval in seconds (0 - disabled).
@@ -84,8 +93,7 @@ The menu can be invoked by clicking the encoder button and is closed automatical
 * **USB Port** - USB serial mode: Off (default) or Ad hoc. In Ad hoc mode, the receiver accepts the [remote control](remote.md) commands over the USB serial port.
 * **TCP Port** - TCP control mode: Off (default) or Ad hoc. In Ad hoc mode, one client can use the [remote control](remote.md#tcp-over-wi-fi) commands over Wi-Fi on port 60000. Wi-Fi must be enabled separately.
 * **Bluetooth** - Bluetooth LE mode: Off (default), Ad hoc, HID, or Unpair All. Ad hoc exposes the same [remote control](remote.md) protocol over BLE. HID makes the receiver act as a BLE HID central and connect to supported Bluetooth remotes/keyboards so their buttons can control tuning and menu actions. Unpair All clears all saved Bluetooth bonds and then switches Bluetooth to Off. WARNING: it is not recommended to enable both Bluetooth and Wi-Fi at the same time (the receiver might become unstable).
-* **Wi-Fi** - Wi-Fi mode: Off (default), Access Point, Access Point + Connect, Connect, Sync Only. More details on that below.
-* **Update FW** - **Check** shows the available firmware version; **Update** installs it (requires a Wi-Fi internet connection). See [updating over Wi-Fi](flash.md#update-over-wi-fi).
+* **Wi-Fi** - Wi-Fi mode: Off (default), Access Point, Access Point + Connect, Connect, Sync Only. Connection and time synchronization run in the background, including at startup, so tuning and menus remain usable. More details on that below.
 * **About** - Informational screens (Help, Authors, System).
 
 ## Wi-Fi
@@ -96,7 +104,8 @@ The Wi-Fi mode (2.4GHz only) can be used for the following purposes (for now):
 * Download the EiBi shortwave schedule.
 * Control the receiver over [TCP](remote.md#tcp-over-wi-fi).
 * Viewing the receiver status (date/time and UTC offset, frequency, RSSI/SNR, volume, battery voltage, etc).
-* Viewing the Memory slots with saved frequencies.
+* Viewing the 99 Favorite slots and the shared FM/MW/SW Memory frequency lists.
+* Downloading all Favorite and Memory entries as a YAML backup, or restoring them from that file.
 * Manage the receiver settings.
 * Upload or delete an optional [splash image](_static/splash-outdoor.png) shown when the receiver starts.
 
@@ -106,7 +115,7 @@ There are a couple of modes:
 * **AP Only** - Access Point mode. The receiver creates its own access point called `ATS-Mini` and starts the web server on <http://10.1.1.1>.
 * **AP+Connect** - Access Point mode + try to connect to one of the three configured access points. If the connection succeeds, the receiver will synchronize the time every 5 minutes and start the web server on both <http://10.1.1.1> and a dynamic IP address it got from the configured access point.
 * **Connect** - try to connect to one of the three configured access points, start the web server on a dynamic IP, then synchronize the time every 5 minutes.
-* **Sync Only** - same as Connect, but Wi-Fi will be disabled after a successful time synchronization.
+* **Sync Only** - connect once to synchronize time, then turn Wi-Fi off. It runs at startup or when selected, but does not reconnect after waking from CPU Sleep.
 
 Initial configuration:
 
@@ -125,7 +134,7 @@ When on the go, you can set up a mobile Wi-Fi hotspot on your smartphone and use
 
 <!-- ### Receiver settings available via Wi-Fi only -->
 
-Firmware updates are available through **Settings → Update FW** or the web interface's **Update** page. See [updating over Wi-Fi](flash.md#update-over-wi-fi) for instructions.
+Firmware updates are available through the web interface's **Update** page. See [updating over Wi-Fi](flash.md#update-over-wi-fi) for instructions.
 
 ## Schedule
 
@@ -148,9 +157,12 @@ To reset the receiver settings (current band, frequency, favorite stations, down
 
 ## Bands table
 
-| Name | Min frequency | Max frequency | Default mode |
-|------|---------------|---------------|--------------|
+| Name  | Min frequency | Max frequency | Default mode |
+|-------|---------------|---------------|--------------|
 | VHF  | 64 MHz        | 108 MHz       | FM           |
+| MW1  | 150 kHz       | 1800 kHz      | AM           |
+| MW2  | 495 kHz       | 1701 kHz      | AM           |
+| MW3  | 1700 kHz      | 3500 kHz      | AM           |
 | ALL  | 150 kHz       | 30000 kHz     | AM           |
 | 11M  | 25600 kHz     | 26100 kHz     | AM           |
 | 13M  | 21500 kHz     | 21900 kHz     | AM           |
@@ -165,9 +177,6 @@ To reset the receiver settings (current band, frequency, favorite stations, down
 | 60M  | 4000 kHz      | 5100 kHz      | AM           |
 | 75M  | 3500 kHz      | 4000 kHz      | AM           |
 | 90M  | 3000 kHz      | 3500 kHz      | AM           |
-| MW3  | 1700 kHz      | 3500 kHz      | AM           |
-| MW2  | 495 kHz       | 1701 kHz      | AM           |
-| MW1  | 150 kHz       | 1800 kHz      | AM           |
 | 160M | 1800 kHz      | 2000 kHz      | LSB          |
 | 80M  | 3500 kHz      | 4000 kHz      | LSB          |
 | 40M  | 7000 kHz      | 7300 kHz      | LSB          |
@@ -178,6 +187,10 @@ To reset the receiver settings (current band, frequency, favorite stations, down
 | 12M  | 24800 kHz     | 25000 kHz     | USB          |
 | 10M  | 28000 kHz     | 29700 kHz     | USB          |
 | CB   | 25000 kHz     | 28000 kHz     | AM           |
+| DAY  | 9000 kHz      | 26000 kHz     | AM           |
+| NIGHT | 3000 kHz      | 12000 kHz     | AM           |
+
+DAY is for daytime, and NIGHT for night and early morning shortwave listening.
 
 ## Remote control
 
