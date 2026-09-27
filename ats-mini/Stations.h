@@ -33,6 +33,7 @@ enum class StationScanResult : uint8_t
 };
 
 void stationsLoad(uint8_t band);
+void stationsSelectFrequency(uint16_t frequency);
 StationScanResult stationsScan();
 void stationsSelect(int16_t direction);
 StationAddResult stationsAddCurrent();

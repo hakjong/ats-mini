@@ -1181,6 +1181,7 @@ static void clickMenu(int cmd, bool shortPress)
 
     case MENU_STATIONS:
       stationsLoad(bandIdx);
+      stationsSelectFrequency(currentFrequency);
       stationActionConfirm = false;
       currentCmd = CMD_STATIONS;
       break;
