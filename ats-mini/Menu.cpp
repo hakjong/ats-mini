@@ -121,15 +121,15 @@ static const char *menu[] =
   "TuneMode",
   "Seek",
   "Scan",
-  "ATS",
-  "ETM Scan",
   "Memory",
+  "ETM Scan",
+  "Favorite",
   "Settings",
   "---More---",
 };
 
 static uint8_t tuneMenuIdx = TUNE_STATIONS;
-static const char *const tuneModes[] = { "ATS", "ETM", "Step" };
+static const char *const tuneModes[] = { "Memory", "ETM", "Step" };
 
 // More submenu
 #define MORE_SQUELCH   0
@@ -1681,7 +1681,7 @@ static void drawStations(int x, int y, int sx)
       strlcpy(title, stationsSelected() == STATION_CLEAR ? "Clear all?" : "Delete?", sizeof(title));
   }
   else
-    snprintf(title, sizeof(title), "ATS %u", stationsCount());
+    snprintf(title, sizeof(title), "Memory %u", stationsCount());
   drawCommon(title, x, y, sx, true);
 
   spr.setTextDatum(MC_DATUM);

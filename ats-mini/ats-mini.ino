@@ -623,7 +623,7 @@ bool doTune(int16_t enc)
                                                    stationsNextFrequency(currentFrequency, enc);
     if(!frequency)
     {
-      statusShow(tuneModeIdx == TUNE_ETM ? "No ETM stations" : "No saved stations");
+      statusShow(tuneModeIdx == TUNE_ETM ? "No ETM stations" : "No Memory stations");
       return true;
     }
     updateFrequency(frequency, true);
