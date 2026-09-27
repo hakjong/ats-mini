@@ -342,7 +342,7 @@ static uint8_t dateTimeSecond;
 //
 // UI Layout Menu
 //
-uint8_t uiLayoutIdx = 0;
+uint8_t uiLayoutIdx = UI_SMETER;
 static const char *uiLayoutDesc[] =
 { "Default", "S-Meter" };
 
