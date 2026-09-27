@@ -1237,7 +1237,7 @@ static void clickSettings(int cmd, bool shortPress)
     case MENU_FM_REGION:  currentCmd = CMD_FM_REGION; break;
     case MENU_KR_AREA:
       if(FmRegionIdx == FM_REGION_KR) currentCmd = CMD_KR_AREA;
-      else drawMessage("Select KR first");
+      else statusShow("Select KR first");
       break;
     case MENU_FM_STEREO:  currentCmd = CMD_FM_STEREO; break;
     case MENU_ABOUT:      currentCmd = CMD_ABOUT;     break;
