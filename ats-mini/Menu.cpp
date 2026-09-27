@@ -129,7 +129,7 @@ static const char *menu[] =
 };
 
 static uint8_t tuneMenuIdx = TUNE_STATIONS;
-static const char *const tuneModes[] = { "Memory", "ETM", "Step" };
+static const char *const tuneModes[] = { "Step", "Memory", "ETM" };
 
 // More submenu
 #define MORE_SQUELCH   0
@@ -1116,9 +1116,26 @@ void doBandwidth(int16_t enc)
 // Handle encoder input in menu
 //
 
+static bool mainMenuItemVisible(int8_t index)
+{
+  return tuneModeIdx == TUNE_STEP || (index != MENU_SEEK && index != MENU_SCAN);
+}
+
+static int8_t nextMainMenuItem(int8_t index, int8_t direction)
+{
+  do
+  {
+    index = wrap_range(index, direction, 0, LAST_ITEM(menu));
+  }
+  while(!mainMenuItemVisible(index));
+  return index;
+}
+
 static void doMenu(int16_t enc)
 {
-  menuIdx = wrap_range(menuIdx, enc, 0, LAST_ITEM(menu));
+  int8_t direction = enc > 0 ? 1 : -1;
+  for(int16_t steps = abs(enc); steps; --steps)
+    menuIdx = nextMainMenuItem(menuIdx, direction);
 }
 
 static void doMore(int16_t enc)
@@ -1441,6 +1458,9 @@ static void drawCommon(const char *title, int x, int y, int sx, bool cursor = fa
 
 static void drawMenu(int x, int y, int sx)
 {
+  if(!mainMenuItemVisible(menuIdx))
+    menuIdx = MENU_TUNING;
+
   spr.setTextDatum(MC_DATUM);
 
   spr.fillRoundRect(1+x, 1+y, 76+sx, 110, 4, TH.menu_bg);
@@ -1454,10 +1474,13 @@ static void drawMenu(int x, int y, int sx)
   spr.setTextColor(TH.menu_item);
   spr.fillRoundRect(6+x, 24+y+(2*16), 66+sx, 16, 2, TH.menu_hl_bg);
 
-  int count = ITEM_COUNT(menu);
   for(int i=-2 ; i<3 ; i++)
   {
-    const char *label = menu[abs((menuIdx+count+i)%count)];
+    int index = menuIdx;
+    int8_t direction = i > 0 ? 1 : -1;
+    for(int steps = abs(i); steps; --steps)
+      index = nextMainMenuItem(index, direction);
+    const char *label = menu[index];
     if(i==0) {
       drawZoomedMenu(label);
       spr.setTextColor(TH.menu_hl_text, TH.menu_hl_bg);

@@ -65,9 +65,9 @@
 #define SEEK_SCHEDULE 1
 
 // VFO tuning modes
-#define TUNE_STATIONS 0
-#define TUNE_ETM      1
-#define TUNE_STEP     2
+#define TUNE_STEP     0
+#define TUNE_STATIONS 1
+#define TUNE_ETM      2
 
 //
 // Data Types
