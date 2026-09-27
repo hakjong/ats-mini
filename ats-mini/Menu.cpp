@@ -8,6 +8,7 @@
 #include "BleMode.h"
 #include "Menu.h"
 #include "Stations.h"
+#include "Etm.h"
 #include "Storage.h"
 #include "KrFm.h"
 
@@ -105,9 +106,10 @@ Band *getCurrentBand() { return(&bands[bandIdx]); }
 #define MENU_SEEK         3
 #define MENU_SCAN         4
 #define MENU_STATIONS     5
-#define MENU_MEMORY       6
-#define MENU_SETTINGS     7
-#define MENU_MORE         8
+#define MENU_ETM_SCAN     6
+#define MENU_MEMORY       7
+#define MENU_SETTINGS     8
+#define MENU_MORE         9
 
 int8_t menuIdx = MENU_VOLUME;
 uint8_t tuneModeIdx = TUNE_STATIONS;
@@ -120,13 +122,22 @@ static const char *menu[] =
   "Seek",
   "Scan",
   "ATS",
+  "ETM Scan",
   "Memory",
   "Settings",
   "---More---",
 };
 
 static uint8_t tuneMenuIdx = TUNE_STATIONS;
-static const char *const tuneModes[] = { "ATS", "Step" };
+static const char *const tuneModes[] = { "ATS", "Step", "ETM" };
+static const uint8_t tuneMenuOrder[] = { TUNE_STATIONS, TUNE_ETM, TUNE_STEP };
+
+static uint8_t tuneModePosition()
+{
+  for(uint8_t i = 0; i < ITEM_COUNT(tuneMenuOrder); ++i)
+    if(tuneMenuOrder[i] == tuneModeIdx) return i;
+  return 0;
+}
 
 // More submenu
 #define MORE_SQUELCH   0
@@ -1125,7 +1136,7 @@ static void doMore(int16_t enc)
 
 static void doTuneMenu(int16_t enc)
 {
-  tuneMenuIdx = wrap_range(tuneMenuIdx, enc, 0, LAST_ITEM(tuneModes));
+  tuneMenuIdx = wrap_range(tuneMenuIdx, enc, 0, LAST_ITEM(tuneMenuOrder));
 }
 
 static void clickMenu(int cmd, bool shortPress)
@@ -1136,7 +1147,7 @@ static void clickMenu(int cmd, bool shortPress)
   switch(cmd)
   {
     case MENU_TUNING:
-      tuneMenuIdx = tuneModeIdx;
+      tuneMenuIdx = tuneModePosition();
       currentCmd = CMD_TUNING;
       break;
     case MENU_SEEK:     currentCmd = CMD_SEEK;      break;
@@ -1165,15 +1176,46 @@ static void clickMenu(int cmd, bool shortPress)
       stationActionConfirm = false;
       currentCmd = CMD_STATIONS;
       break;
+
+    case MENU_ETM_SCAN:
+      currentCmd = CMD_ETM_SCAN;
+      drawMessage("Scanning band...");
+      switch(etmScan())
+      {
+        case EtmScanResult::COMPLETED:
+          tuneModeIdx = TUNE_ETM;
+          prefsRequestSave(SAVE_SETTINGS);
+          currentCmd = CMD_NONE;
+          statusShow("ETM scan saved");
+          break;
+        case EtmScanResult::CANCELLED:
+          currentCmd = CMD_NONE;
+          statusShow("Scan cancelled");
+          break;
+        case EtmScanResult::SAVE_FAILED:
+          currentCmd = CMD_NONE;
+          statusShow("Save failed");
+          break;
+        case EtmScanResult::NO_MEMORY:
+          currentCmd = CMD_NONE;
+          statusShow("Not enough PSRAM");
+          break;
+        case EtmScanResult::UNSUPPORTED:
+          currentCmd = CMD_NONE;
+          statusShow("AM/FM only");
+          break;
+      }
+      break;
   }
 }
 
 static void clickTuneMenu()
 {
   currentCmd = CMD_NONE;
-  if(tuneModeIdx != tuneMenuIdx)
+  uint8_t selectedMode = tuneMenuOrder[tuneMenuIdx];
+  if(tuneModeIdx != selectedMode)
   {
-    tuneModeIdx = tuneMenuIdx;
+    tuneModeIdx = selectedMode;
     prefsRequestSave(SAVE_SETTINGS);
   }
   statusShow(tuneModes[tuneModeIdx]);
@@ -1444,7 +1486,7 @@ static void drawTuneMenu(int x, int y, int sx)
   {
     int index = tuneMenuIdx + i;
     if(index < 0 || index >= ITEM_COUNT(tuneModes)) continue;
-    const char *label = tuneModes[index];
+    const char *label = tuneModes[tuneMenuOrder[index]];
     if(i == 0)
     {
       drawZoomedMenu(label);
@@ -1581,6 +1623,32 @@ static void drawScan(int x, int y, int sx)
   spr.drawLine(40+x+(sx/2)-4, 66+y+5, 40+x+(sx/2), 66+y-16+5, TH.menu_param);
   spr.drawLine(40+x+(sx/2), 66+y-16+5, 40+x+(sx/2)+4, 66+y+5, TH.menu_param);
   spr.drawLine(40+x+(sx/2)+4, 66+y+5, 40+x+(sx/2)+17, 66+y+5, TH.menu_param);
+}
+
+static void drawEtmScan(int x, int y, int sx)
+{
+  char title[20];
+  snprintf(title, sizeof(title), "ETM Found %u", etmScanFoundCount());
+  drawCommon(title, x, y, sx);
+  spr.setTextDatum(MC_DATUM);
+  spr.setTextColor(TH.menu_item);
+
+  uint8_t count = etmScanListCount();
+  if(!etmScanning() || !count)
+    spr.drawString("Searching...", 40+x+(sx/2), 64+y, FONT_SMALL);
+  else
+  {
+    uint8_t first = count > 5 ? count - 5 : 0;
+    for(uint8_t i = first; i < count; ++i)
+    {
+      char frequency[16];
+      if(currentMode == FM)
+        snprintf(frequency, sizeof(frequency), "%3.2f MHz", etmScanFrequency(i) / 100.0);
+      else
+        snprintf(frequency, sizeof(frequency), "%u kHz", etmScanFrequency(i));
+      spr.drawString(frequency, 40+x+(sx/2), 32+y+(i-first)*16, FONT_SMALL);
+    }
+  }
 }
 
 static void drawStations(int x, int y, int sx)
@@ -2317,6 +2385,7 @@ void drawSideBar(uint16_t cmd, int x, int y, int sx)
     case CMD_STEP:       drawStep(x, y, sx);       break;
     case CMD_SEEK:       drawSeek(x, y, sx);       break;
     case CMD_SCAN:       drawScan(x, y, sx);       break;
+    case CMD_ETM_SCAN:   drawEtmScan(x, y, sx);    break;
     case CMD_STATIONS:   drawStations(x, y, sx);   break;
     case CMD_BAND:       drawBand(x, y, sx);       break;
     case CMD_BANDWIDTH:  drawBandwidth(x, y, sx);  break;

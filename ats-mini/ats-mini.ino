@@ -8,6 +8,7 @@
 #include "Button.h"
 #include "Menu.h"
 #include "Stations.h"
+#include "Etm.h"
 #include "Draw.h"
 #include "Storage.h"
 #include "Themes.h"
@@ -616,12 +617,13 @@ bool doSeek(int16_t enc, int16_t enca)
 //
 bool doTune(int16_t enc)
 {
-  if(currentCmd == CMD_NONE && tuneModeIdx == TUNE_STATIONS)
+  if(currentCmd == CMD_NONE && tuneModeIdx != TUNE_STEP)
   {
-    uint16_t frequency = stationsNextFrequency(currentFrequency, enc);
+    uint16_t frequency = tuneModeIdx == TUNE_ETM ? etmNextFrequency(currentFrequency, enc) :
+                                                   stationsNextFrequency(currentFrequency, enc);
     if(!frequency)
     {
-      statusShow("No saved stations");
+      statusShow(tuneModeIdx == TUNE_ETM ? "No ETM stations" : "No saved stations");
       return true;
     }
     updateFrequency(frequency, true);
@@ -873,7 +875,7 @@ void loop()
       {
         case CMD_NONE:
           // Saved stations advance one entry per encoder detent.
-          needRedraw |= doTune(tuneModeIdx == TUNE_STATIONS ? encCount : encCountAccel);
+          needRedraw |= doTune(tuneModeIdx == TUNE_STEP ? encCountAccel : encCount);
           prefsRequestSave(SAVE_CUR_BAND);
           break;
         case CMD_SCAN:

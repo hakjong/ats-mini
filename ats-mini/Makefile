@@ -34,12 +34,12 @@ HEADERS = \
 	Common.h Themes.h Menu.h Storage.h Display.h Rotary.h KrFm.h KrFmData.inc \
 	Utils.h Button.h EIBI.h Remote.h BleMode.h TcpMode.h BlePeripheral.h \
 	BleUartPeripheral.h BleCentral.h BleHidCentral.h \
-	SI4735-fixed.h patch_init.h Splash.h Ota.h Stations.h
+	SI4735-fixed.h patch_init.h Splash.h Ota.h Stations.h Etm.h
 
 SRC = \
 	$(INO) Utils.cpp Rotary.cpp Button.cpp Draw.cpp Menu.cpp \
 	Station.cpp KrFm.cpp Battery.cpp Storage.cpp Themes.cpp Remote.cpp \
-	Network.cpp Ota.cpp Splash.cpp EIBI.cpp Scan.cpp Stations.cpp About.cpp BleMode.cpp TcpMode.cpp \
+	Network.cpp Ota.cpp Splash.cpp EIBI.cpp Scan.cpp Stations.cpp Etm.cpp About.cpp BleMode.cpp TcpMode.cpp \
 	BlePeripheral.cpp BleUartPeripheral.cpp \
 	BleCentral.cpp BleHidCentral.cpp \
 	Layout-Default.cpp Layout-SMeter.cpp

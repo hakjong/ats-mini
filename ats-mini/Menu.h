@@ -31,7 +31,8 @@
 #define CMD_SQUELCH    0x1C00 // |
 #define CMD_STATIONS   0x1D00 // | Saved stations in the current band
 #define CMD_MORE       0x1E00 // | More submenu
-#define CMD_TUNING     0x1F00 //-+ Tuning mode submenu
+#define CMD_TUNING     0x1F00 // | Tuning mode submenu
+#define CMD_ETM_SCAN   0x1F80 //-+ ETM band scan
 #define CMD_SETTINGS   0x2000 //-SETTINGS MODE starts here
 #define CMD_BRT        0x2100 // |
 #define CMD_CAL        0x2200 // |
@@ -66,6 +67,7 @@
 // VFO tuning modes
 #define TUNE_STATIONS 0
 #define TUNE_STEP     1
+#define TUNE_ETM      2
 
 //
 // Data Types
