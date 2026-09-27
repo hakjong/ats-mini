@@ -167,8 +167,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           FILENAMES: >-
-            ${{ github.event.repository.name }}-${{ needs.build.outputs.slug }}-*.zip
-            artifact/${{ github.event.repository.name }}-${{ needs.build.outputs.slug }}-*-ota.bin
+            ats-mini-${{ needs.build.outputs.slug }}-*.zip
+            artifact/ats-mini-${{ needs.build.outputs.slug }}-*-ota.bin
           SLUG: ${{ needs.build.outputs.slug }}
         run: |
           # shellcheck disable=SC2086
