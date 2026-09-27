@@ -750,7 +750,7 @@ static void clickStations(bool shortPress)
     return;
   }
 
-  if(stationsSelected() <= STATION_APPEND_SCAN)
+  if(stationsSelected() == STATION_ATS_SCAN)
   {
     if(isSSB()) statusShow("AM/FM only");
     else if(!stationActionConfirm)
@@ -762,7 +762,7 @@ static void clickStations(bool shortPress)
     {
       stationActionConfirm = false;
       drawMessage("Scanning band...");
-      switch(stationsScan(stationsSelected() == STATION_APPEND_SCAN))
+      switch(stationsScan())
       {
         case StationScanResult::COMPLETED:   currentCmd = CMD_NONE;         break;
         case StationScanResult::CANCELLED:   statusShow("Scan cancelled"); break;
@@ -1673,10 +1673,8 @@ static void drawStations(int x, int y, int sx)
 
   if(stationActionConfirm)
   {
-    if(stationsSelected() == STATION_CLEAR_SCAN)
-      strlcpy(title, "Clear scan?", sizeof(title));
-    else if(stationsSelected() == STATION_APPEND_SCAN)
-      strlcpy(title, "Append scan?", sizeof(title));
+    if(stationsSelected() == STATION_ATS_SCAN)
+      strlcpy(title, "ATS scan?", sizeof(title));
     else
       strlcpy(title, stationsSelected() == STATION_CLEAR ? "Clear all?" : "Delete?", sizeof(title));
   }
@@ -1693,10 +1691,8 @@ static void drawStations(int x, int y, int sx)
     char frequency[16];
     if(index == STATION_ADD_CURRENT)
       strlcpy(frequency, "Add Current", sizeof(frequency));
-    else if(index == STATION_CLEAR_SCAN)
-      strlcpy(frequency, "Clear Scan", sizeof(frequency));
-    else if(index == STATION_APPEND_SCAN)
-      strlcpy(frequency, "Append Scan", sizeof(frequency));
+    else if(index == STATION_ATS_SCAN)
+      strlcpy(frequency, "ATS", sizeof(frequency));
     else if(index == STATION_CLEAR)
       strlcpy(frequency, "Clear", sizeof(frequency));
     else if(currentMode == FM)

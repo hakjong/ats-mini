@@ -218,7 +218,7 @@ static void rememberStation(SavedStations &found, uint16_t freq)
   }
 }
 
-StationScanResult stationsScan(bool append)
+StationScanResult stationsScan()
 {
   if(isSSB()) return StationScanResult::UNSUPPORTED; // The SI4732 cannot seek in SSB mode.
 
@@ -226,7 +226,7 @@ StationScanResult stationsScan(bool append)
   const Band *band = getCurrentBand();
   const uint16_t originalFreq = currentFrequency;
   SavedStations found = stations;
-  if(!append) found.count = 0;
+  found.count = 0;
 
   scanAborted = false;
   scanFoundCount = 0;
@@ -283,7 +283,7 @@ StationScanResult stationsScan(bool append)
 
   if(scanAborted) return StationScanResult::CANCELLED;
   if(!saveStations(found)) return StationScanResult::SAVE_FAILED;
-  if(!append && currentMode == FM)
+  if(currentMode == FM)
   {
     krFmSetManualRegion(KR_FM_AUTO);
     prefsRequestSave(SAVE_SETTINGS, true);

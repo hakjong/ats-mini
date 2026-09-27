@@ -4,10 +4,9 @@
 #include <stdint.h>
 
 #define STATION_ADD_CURRENT  0
-#define STATION_CLEAR_SCAN   1
-#define STATION_APPEND_SCAN  2
-#define STATION_CLEAR        3
-#define STATION_ACTION_COUNT 4
+#define STATION_ATS_SCAN     1
+#define STATION_CLEAR        2
+#define STATION_ACTION_COUNT 3
 
 enum class StationAddResult : uint8_t
 {
@@ -26,7 +25,7 @@ enum class StationScanResult : uint8_t
 };
 
 void stationsLoad(uint8_t band);
-StationScanResult stationsScan(bool append);
+StationScanResult stationsScan();
 void stationsSelect(int16_t direction);
 StationAddResult stationsAddCurrent();
 bool stationsClear();
