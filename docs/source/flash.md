@@ -39,7 +39,7 @@ Do not omit `boot_app0.bin` when flashing separate files. For older release arch
 
 ## Update over Wi-Fi
 
-In the web interface, open **Update**, expand **Manual upload**, select the `ats-mini-vVERSION-VARIANT-ota.bin` or `ats-mini.ino.bin` file for your receiver variant, then press **Upload**. Use the same login and password as the configuration page, if configured. This works without internet access and can reinstall the same version.
+In the web interface, open **Update**, select the `ats-mini-vVERSION-VARIANT-ota.bin` or `ats-mini.ino.bin` file for your receiver variant, then press **Upload**. Use the same login and password as the configuration page, if configured. This works without internet access and can reinstall the same version.
 
 Press the encoder to cancel while firmware is transferring. Once the update is finalizing, let the receiver restart.
 

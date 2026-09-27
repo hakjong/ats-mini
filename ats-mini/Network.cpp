@@ -1499,7 +1499,7 @@ static void webUpdatePage(AsyncWebServerRequest *request, const OtaStatus &statu
 "</TH></TR>"
 "-->"
 "<TR><TD CLASS='CENTER'>"
-  "<DETAILS><SUMMARY>Manual upload</SUMMARY>"
+  "<H3>Manual upload</H3>"
   "<FORM METHOD='POST' ACTION='/update/upload' ENCTYPE='multipart/form-data' ONSUBMIT='this.elements.size.value=this.elements.firmware.files[0].size;this.querySelector(\"button\").disabled=true;'>"
   // Send the size before the file so the first upload callback can read it.
   "<INPUT TYPE='HIDDEN' NAME='size'>"
@@ -1509,7 +1509,6 @@ static void webUpdatePage(AsyncWebServerRequest *request, const OtaStatus &statu
   "<BUTTON TYPE='SUBMIT' STYLE='padding: 0.5em 2em;'" + String(busy || complete? " DISABLED" : "") + ">Upload</BUTTON>"
   "</DIV>"
   "</FORM>"
-  "</DETAILS>"
 "</TD></TR>"
 "</TABLE>" + refresh
 );
