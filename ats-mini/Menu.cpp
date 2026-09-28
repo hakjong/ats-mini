@@ -1150,6 +1150,12 @@ static void doMenu(int16_t enc)
     menuIdx = nextMainMenuItem(menuIdx, direction);
 }
 
+void openMainMenu()
+{
+  menuIdx = MENU_VOLUME;
+  currentCmd = CMD_MENU;
+}
+
 static void doMore(int16_t enc)
 {
   moreIdx = wrap_range(moreIdx, enc, 0, LAST_ITEM(more));

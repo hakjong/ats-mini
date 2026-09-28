@@ -120,6 +120,7 @@ uint8_t seekMode(bool toggle = false);
 void drawSideBar(uint16_t cmd, int x, int y, int sx);
 bool doSideBar(uint16_t cmd, int16_t enc, int16_t enca);
 bool menuHoldCloses(uint16_t cmd);
+void openMainMenu();
 void doSelectDigit(int16_t enc);
 bool clickHandler(uint16_t cmd, bool shortPress);
 void selectBand(uint8_t idx, bool drawLoadingSSB = true);

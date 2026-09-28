@@ -972,7 +972,7 @@ void loop()
       else
       {
         // Activate menu
-        currentCmd = CMD_MENU;
+        openMainMenu();
         needRedraw = true;
       }
     }
