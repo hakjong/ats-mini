@@ -38,6 +38,7 @@ extern char statusLines[2][96];
 const char *clockGet();
 bool clockAvailable();
 bool clockGetHM(uint8_t *hours, uint8_t *minutes);
+bool clockGetLocalHM(uint8_t *hours, uint8_t *minutes);
 bool clockGetDate(uint16_t *year, uint8_t *month, uint8_t *day, uint8_t *weekday);
 bool clockUTCDateTimeToEpoch(int year, int month, int day, int hour, int minute, int second, uint32_t *epoch);
 bool clockSetEpoch(uint32_t epoch);

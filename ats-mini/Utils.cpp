@@ -302,12 +302,9 @@ const char *clockGet()
 {
   static char text[6];
   if(switchThemeEditor()) return("00:00");
-  if(!clockHasBeenSet) return(NULL);
-
-  time_t now = time(NULL) + getCurrentUTCOffset() * 15 * 60;
-  struct tm tm;
-  gmtime_r(&now, &tm);
-  sprintf(text, "%02d:%02d", tm.tm_hour, tm.tm_min);
+  uint8_t hour, minute;
+  if(!clockGetLocalHM(&hour, &minute)) return(NULL);
+  sprintf(text, "%02d:%02d", hour, minute);
   return(text);
 }
 
@@ -316,6 +313,19 @@ bool clockGetHM(uint8_t *hours, uint8_t *minutes)
   if(!clockHasBeenSet) return(false);
 
   time_t now = time(NULL);
+  struct tm tm;
+  gmtime_r(&now, &tm);
+
+  if(hours) *hours = tm.tm_hour;
+  if(minutes) *minutes = tm.tm_min;
+  return(true);
+}
+
+bool clockGetLocalHM(uint8_t *hours, uint8_t *minutes)
+{
+  if(!clockHasBeenSet) return(false);
+
+  time_t now = time(NULL) + getCurrentUTCOffset() * 15 * 60;
   struct tm tm;
   gmtime_r(&now, &tm);
 

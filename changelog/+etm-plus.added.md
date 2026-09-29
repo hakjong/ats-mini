@@ -1,0 +1,1 @@
+Added a TECSUN-style ETM+ mode for AM shortwave bands. ETM+ Scan stores the current band's stations in one of 24 local-hour lists (E00 through E23), preserves the previous list when cancelled, and selects ETM+ in TuneMode when complete. Tuning automatically uses the displayed local hour's persistent list, which is identified by its E-hour above the frequency unit.

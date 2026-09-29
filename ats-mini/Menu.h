@@ -33,6 +33,7 @@
 #define CMD_MORE       0x1E00 // | More submenu
 #define CMD_TUNING     0x1F00 // | Tuning mode submenu
 #define CMD_ETM_SCAN   0x1F80 //-+ ETM band scan
+#define CMD_ETM_PLUS_SCAN 0x1F81 //-+ Hourly shortwave ETM+ scan
 #define CMD_SETTINGS   0x2000 //-SETTINGS MODE starts here
 #define CMD_BRT        0x2100 // |
 #define CMD_CAL        0x2200 // |
@@ -68,6 +69,7 @@
 #define TUNE_STEP     0
 #define TUNE_STATIONS 1
 #define TUNE_ETM      2
+#define TUNE_ETM_PLUS 3
 
 //
 // Data Types

@@ -9,6 +9,7 @@
 #include "Menu.h"
 #include "Stations.h"
 #include "Etm.h"
+#include "EtmPlus.h"
 #include "Storage.h"
 #include "KrFm.h"
 
@@ -106,9 +107,10 @@ Band *getCurrentBand() { return(&bands[bandIdx]); }
 #define MENU_SCAN         4
 #define MENU_STATIONS     5
 #define MENU_ETM_SCAN     6
-#define MENU_MEMORY       7
-#define MENU_SETTINGS     8
-#define MENU_MORE         9
+#define MENU_ETM_PLUS_SCAN 7
+#define MENU_MEMORY       8
+#define MENU_SETTINGS     9
+#define MENU_MORE         10
 
 int8_t menuIdx = MENU_VOLUME;
 uint8_t tuneModeIdx = TUNE_STEP;
@@ -122,16 +124,27 @@ static const char *menu[] =
   "Scan",
   "Memory",
   "ETM Scan",
+  "ETM+ Scan",
   "Favorite",
   "Settings",
   "---More---",
 };
 
 static uint8_t tuneMenuIdx = TUNE_STEP;
-static const char *const tuneModes[] = { "Step", "Memory", "ETM" };
+static const char *const tuneModes[] = { "Step", "Memory", "ETM", "ETM+" };
 
 const char *getTuneModeName()
 {
+  static char etmPlusName[4];
+  if(tuneModeIdx == TUNE_ETM_PLUS)
+  {
+    uint8_t hour;
+    if(etmPlusCurrentHour(&hour))
+    {
+      snprintf(etmPlusName, sizeof(etmPlusName), "E%02u", hour);
+      return etmPlusName;
+    }
+  }
   return tuneModeIdx > TUNE_STEP && tuneModeIdx < ITEM_COUNT(tuneModes) ? tuneModes[tuneModeIdx] : "";
 }
 
@@ -1130,6 +1143,7 @@ void doBandwidth(int16_t enc)
 
 static bool mainMenuItemVisible(int8_t index)
 {
+  if(index == MENU_ETM_PLUS_SCAN) return etmPlusSupported();
   return tuneModeIdx == TUNE_STEP || (index != MENU_SEEK && index != MENU_SCAN);
 }
 
@@ -1231,6 +1245,44 @@ static void clickMenu(int cmd, bool shortPress)
         case EtmScanResult::UNSUPPORTED:
           currentCmd = CMD_NONE;
           statusShow("AM/FM only");
+          break;
+      }
+      break;
+
+    case MENU_ETM_PLUS_SCAN:
+      currentCmd = CMD_ETM_PLUS_SCAN;
+      drawMessage("Scanning E-hour...");
+      switch(etmPlusScan())
+      {
+        case EtmPlusScanResult::COMPLETED:
+        {
+          char status[24];
+          snprintf(status, sizeof(status), "ETM+ E%02u saved", etmPlusScanHour());
+          tuneModeIdx = TUNE_ETM_PLUS;
+          prefsRequestSave(SAVE_SETTINGS);
+          currentCmd = CMD_NONE;
+          statusShow(status);
+          break;
+        }
+        case EtmPlusScanResult::CANCELLED:
+          currentCmd = CMD_NONE;
+          statusShow("Scan cancelled");
+          break;
+        case EtmPlusScanResult::SAVE_FAILED:
+          currentCmd = CMD_NONE;
+          statusShow("Save failed");
+          break;
+        case EtmPlusScanResult::NO_MEMORY:
+          currentCmd = CMD_NONE;
+          statusShow("Not enough PSRAM");
+          break;
+        case EtmPlusScanResult::NO_CLOCK:
+          currentCmd = CMD_NONE;
+          statusShow("Set clock for ETM+");
+          break;
+        case EtmPlusScanResult::UNSUPPORTED:
+          currentCmd = CMD_NONE;
+          statusShow("SW AM only");
           break;
       }
       break;
@@ -1678,6 +1730,29 @@ static void drawEtmScan(int x, int y, int sx)
         snprintf(frequency, sizeof(frequency), "%3.2f MHz", etmScanFrequency(i) / 100.0);
       else
         snprintf(frequency, sizeof(frequency), "%u kHz", etmScanFrequency(i));
+      spr.drawString(frequency, 40+x+(sx/2), 32+y+(i-first)*16, FONT_SMALL);
+    }
+  }
+}
+
+static void drawEtmPlusScan(int x, int y, int sx)
+{
+  char title[20];
+  snprintf(title, sizeof(title), "ETM+ E%02u %u", etmPlusScanHour(), etmPlusScanFoundCount());
+  drawCommon(title, x, y, sx);
+  spr.setTextDatum(MC_DATUM);
+  spr.setTextColor(TH.menu_item);
+
+  uint8_t count = etmPlusScanListCount();
+  if(!etmPlusScanning() || !count)
+    spr.drawString("Searching...", 40+x+(sx/2), 64+y, FONT_SMALL);
+  else
+  {
+    uint8_t first = count > 5 ? count - 5 : 0;
+    for(uint8_t i = first; i < count; ++i)
+    {
+      char frequency[16];
+      snprintf(frequency, sizeof(frequency), "%u kHz", etmPlusScanFrequency(i));
       spr.drawString(frequency, 40+x+(sx/2), 32+y+(i-first)*16, FONT_SMALL);
     }
   }
@@ -2414,6 +2489,7 @@ void drawSideBar(uint16_t cmd, int x, int y, int sx)
     case CMD_SEEK:       drawSeek(x, y, sx);       break;
     case CMD_SCAN:       drawScan(x, y, sx);       break;
     case CMD_ETM_SCAN:   drawEtmScan(x, y, sx);    break;
+    case CMD_ETM_PLUS_SCAN: drawEtmPlusScan(x, y, sx); break;
     case CMD_STATIONS:   drawStations(x, y, sx);   break;
     case CMD_BAND:       drawBand(x, y, sx);       break;
     case CMD_BANDWIDTH:  drawBandwidth(x, y, sx);  break;

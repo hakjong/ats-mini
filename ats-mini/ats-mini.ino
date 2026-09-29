@@ -9,6 +9,7 @@
 #include "Menu.h"
 #include "Stations.h"
 #include "Etm.h"
+#include "EtmPlus.h"
 #include "Draw.h"
 #include "Storage.h"
 #include "Themes.h"
@@ -620,10 +621,24 @@ bool doTune(int16_t enc)
   if(currentCmd == CMD_NONE && tuneModeIdx != TUNE_STEP)
   {
     uint16_t frequency = tuneModeIdx == TUNE_ETM ? etmNextFrequency(currentFrequency, enc) :
-                                                   stationsNextFrequency(currentFrequency, enc);
+                         tuneModeIdx == TUNE_ETM_PLUS ? etmPlusNextFrequency(currentFrequency, enc) :
+                                                       stationsNextFrequency(currentFrequency, enc);
     if(!frequency)
     {
-      statusShow(tuneModeIdx == TUNE_ETM ? "No ETM stations" : "No Memory stations");
+      if(tuneModeIdx == TUNE_ETM_PLUS)
+      {
+        uint8_t hour;
+        if(!etmPlusSupported()) statusShow("ETM+ is SW AM only");
+        else if(!etmPlusCurrentHour(&hour)) statusShow("Set clock for ETM+");
+        else
+        {
+          char status[24];
+          snprintf(status, sizeof(status), "No ETM+ stations E%02u", hour);
+          statusShow(status);
+        }
+      }
+      else
+        statusShow(tuneModeIdx == TUNE_ETM ? "No ETM stations" : "No Memory stations");
       return true;
     }
     updateFrequency(frequency, true);
