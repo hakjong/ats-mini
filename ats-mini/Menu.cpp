@@ -1215,9 +1215,14 @@ static void doMore(int16_t enc)
   moreIdx = wrap_range(moreIdx, enc, SUBMENU_BACK, LAST_ITEM(more));
 }
 
+static uint8_t lastTuneMenuItem()
+{
+  return etmPlusSupported() ? LAST_ITEM(tuneModes) : TUNE_ETM;
+}
+
 static void doTuneMenu(int16_t enc)
 {
-  tuneMenuIdx = wrap_range(tuneMenuIdx, enc, 0, LAST_ITEM(tuneModes));
+  tuneMenuIdx = wrap_range(tuneMenuIdx, enc, 0, lastTuneMenuItem());
 }
 
 static void clickMenu(int cmd, bool shortPress)
@@ -1228,7 +1233,7 @@ static void clickMenu(int cmd, bool shortPress)
   switch(cmd)
   {
     case MENU_TUNING:
-      tuneMenuIdx = tuneModeIdx;
+      tuneMenuIdx = min(tuneModeIdx, lastTuneMenuItem());
       currentCmd = CMD_TUNING;
       break;
     case MENU_SEEK:     currentCmd = CMD_SEEK;      break;
@@ -1552,6 +1557,9 @@ void selectBand(uint8_t idx, bool drawLoadingSSB)
   // Switch radio to the selected band
   useBand(&bands[bandIdx]);
 
+  // ETM+ is only available for AM shortwave bands.
+  if(tuneModeIdx == TUNE_ETM_PLUS && !etmPlusSupported()) useStepTuneMode();
+
   // Set bandwidth for the current mode
   setBandwidth();
 
@@ -1632,7 +1640,7 @@ static void drawTuneMenu(int x, int y, int sx)
   for(int i=-2; i<3; ++i)
   {
     int index = tuneMenuIdx + i;
-    if(index < 0 || index >= ITEM_COUNT(tuneModes)) continue;
+    if(index < 0 || index > lastTuneMenuItem()) continue;
     const char *label = tuneModes[index];
     if(i == 0)
     {
