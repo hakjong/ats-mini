@@ -180,6 +180,21 @@ uint16_t stationsNextFrequency(uint16_t current, int16_t direction)
   return stations.frequencies[index];
 }
 
+uint16_t stationsFrequencyPosition(uint16_t current, uint16_t *total)
+{
+  stationsLoad(bandIdx);
+  uint16_t position = 0;
+  uint16_t visibleCount = 0;
+  for(uint16_t i = 0; i < stations.count; ++i)
+    if(frequencyInCurrentBand(stations.frequencies[i]))
+    {
+      ++visibleCount;
+      if(stations.frequencies[i] == current) position = visibleCount;
+    }
+  if(total) *total = visibleCount;
+  return position;
+}
+
 bool stationsReadGroup(uint8_t group, uint16_t *frequencies, uint16_t *count)
 {
   if(!frequencies || !count) return false;

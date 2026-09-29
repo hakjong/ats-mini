@@ -132,6 +132,26 @@ uint16_t etmPlusNextFrequency(uint16_t current, int16_t direction)
   return etmPlus->frequencies[index];
 }
 
+uint16_t etmPlusFrequencyPosition(uint16_t current, uint16_t *total)
+{
+  uint8_t hour;
+  if(!etmPlusSupported() || !etmPlusCurrentHour(&hour) || !etmPlusLoad(bandIdx, hour))
+  {
+    if(total) *total = 0;
+    return 0;
+  }
+
+  uint16_t position = 0;
+  for(uint16_t i = 0; i < etmPlus->count; ++i)
+    if(etmPlus->frequencies[i] == current)
+    {
+      position = i + 1;
+      break;
+    }
+  if(total) *total = etmPlus->count;
+  return position;
+}
+
 static bool saveEtmPlus(const SavedEtmPlus &updated, uint8_t band, uint8_t hour)
 {
   char key[16];

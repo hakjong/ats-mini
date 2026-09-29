@@ -44,6 +44,7 @@ bool stationsHasFrequency(uint16_t frequency);
 uint16_t stationsSelected();
 uint16_t stationsFrequency(uint16_t index);
 uint16_t stationsNextFrequency(uint16_t current, int16_t direction);
+uint16_t stationsFrequencyPosition(uint16_t current, uint16_t *total);
 bool stationsScanning();
 uint16_t stationsScanFoundCount();
 uint8_t stationsScanListCount();

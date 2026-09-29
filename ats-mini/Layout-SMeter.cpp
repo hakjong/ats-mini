@@ -194,6 +194,7 @@ void drawLayoutSmeter()
     drawLongStationName(getStationName() + 1, MENU_OFFSET_X + 1 + 76 + MENU_DELTA_X + 2, RDS_OFFSET_Y);
   else if(*getStationName())
     drawStationName(getStationName(), RDS_OFFSET_X, RDS_OFFSET_Y);
+  drawTunePosition(DISPLAY_WIDTH - 1, RDS_OFFSET_Y + 5);
 
   // Draw band scale
   drawSmallScale(isSSB()? (currentFrequency + currentBFO/1000) : currentFrequency, 120);

@@ -48,6 +48,7 @@ void drawLayoutDefault()
     drawLongStationName(getStationName() + 1, MENU_OFFSET_X + 1 + 76 + MENU_DELTA_X + 2, RDS_OFFSET_Y);
   else if(*getStationName())
     drawStationName(getStationName(), RDS_OFFSET_X, RDS_OFFSET_Y);
+  drawTunePosition(DISPLAY_WIDTH - 1, RDS_OFFSET_Y + 5);
 
   // Draw left-side menu/info bar
   // @@@ FIXME: Frequency display (above) intersects the side bar!

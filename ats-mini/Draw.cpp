@@ -5,6 +5,8 @@
 #include "Menu.h"
 #include "BleMode.h"
 #include "Stations.h"
+#include "Etm.h"
+#include "EtmPlus.h"
 #include "Draw.h"
 
 //
@@ -402,6 +404,35 @@ void drawLongStationName(const char *name, int x, int y)
     spr.setTextDatum(TC_DATUM);
     spr.drawString(name, x + (320 - x + width) / 4, y, font);
   }
+}
+
+void drawTunePosition(int x, int y)
+{
+  uint16_t total = 0;
+  uint16_t position = 0;
+  switch(tuneModeIdx)
+  {
+    case TUNE_STATIONS:
+      position = stationsFrequencyPosition(currentFrequency, &total);
+      break;
+    case TUNE_ETM:
+      position = etmFrequencyPosition(currentFrequency, &total);
+      break;
+    case TUNE_ETM_PLUS:
+      position = etmPlusFrequencyPosition(currentFrequency, &total);
+      break;
+    default:
+      return;
+  }
+
+  char text[16];
+  if(position)
+    snprintf(text, sizeof(text), "%u / %u", position, total);
+  else
+    snprintf(text, sizeof(text), "- / %u", total);
+  spr.setTextDatum(TR_DATUM);
+  spr.setTextColor(TH.rds_text, TH.bg);
+  spr.drawString(text, x, y, FONT_SMALL);
 }
 
 //

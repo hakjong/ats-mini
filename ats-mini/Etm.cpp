@@ -120,6 +120,25 @@ uint16_t etmNextFrequency(uint16_t current, int16_t direction)
   return etm->frequencies[index];
 }
 
+uint16_t etmFrequencyPosition(uint16_t current, uint16_t *total)
+{
+  if(!etmLoad(bandIdx))
+  {
+    if(total) *total = 0;
+    return 0;
+  }
+
+  uint16_t position = 0;
+  for(uint16_t i = 0; i < etm->count; ++i)
+    if(etm->frequencies[i] == current)
+    {
+      position = i + 1;
+      break;
+    }
+  if(total) *total = etm->count;
+  return position;
+}
+
 static bool saveEtm(const SavedEtm &updated)
 {
   char key[16];

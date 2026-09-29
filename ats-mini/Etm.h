@@ -16,6 +16,7 @@ bool etmLoad(uint8_t band);
 EtmScanResult etmScan();
 uint16_t etmCount();
 uint16_t etmNextFrequency(uint16_t current, int16_t direction);
+uint16_t etmFrequencyPosition(uint16_t current, uint16_t *total);
 bool etmScanning();
 uint16_t etmScanFoundCount();
 uint8_t etmScanListCount();

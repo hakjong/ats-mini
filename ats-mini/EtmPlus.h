@@ -17,6 +17,7 @@ bool etmPlusSupported();
 bool etmPlusCurrentHour(uint8_t *hour);
 EtmPlusScanResult etmPlusScan();
 uint16_t etmPlusNextFrequency(uint16_t current, int16_t direction);
+uint16_t etmPlusFrequencyPosition(uint16_t current, uint16_t *total);
 bool etmPlusScanning();
 uint16_t etmPlusScanFoundCount();
 uint8_t etmPlusScanListCount();
