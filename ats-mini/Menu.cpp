@@ -1881,7 +1881,7 @@ static void drawStations(int x, int y, int sx)
     if(index < 0 || index >= count) continue;
     char frequency[16];
     if(index == STATION_BACK)
-      strlcpy(frequency, "Back", sizeof(frequency));
+      strlcpy(frequency, "<-", sizeof(frequency));
     else if(index == STATION_ADD_CURRENT)
       strlcpy(frequency, "Add Current", sizeof(frequency));
     else if(index == STATION_ATS_SCAN)
