@@ -148,6 +148,13 @@ const char *getTuneModeName()
   return tuneModeIdx > TUNE_STEP && tuneModeIdx < ITEM_COUNT(tuneModes) ? tuneModes[tuneModeIdx] : "";
 }
 
+void useStepTuneMode()
+{
+  if(tuneModeIdx == TUNE_STEP) return;
+  tuneModeIdx = TUNE_STEP;
+  prefsRequestSave(SAVE_SETTINGS);
+}
+
 // More submenu
 #define MORE_SQUELCH   0
 #define MORE_BW        1

@@ -647,6 +647,8 @@ bool doTune(int16_t enc)
     return true;
   }
 
+  useStepTuneMode();
+
   //
   // SSB tuning
   //
@@ -686,6 +688,7 @@ bool doTune(int16_t enc)
 //
 bool doDigit(int16_t enc)
 {
+  uint32_t previousFrequency = freqToHz(currentFrequency, currentMode) + currentBFO;
   bool updated = false;
 
   // SSB tuning
@@ -704,6 +707,7 @@ bool doDigit(int16_t enc)
   }
 
   if (updated) {
+    if(freqToHz(currentFrequency, currentMode) + currentBFO != previousFrequency) useStepTuneMode();
     // Clear current station name and information
     clearStationInfo();
     // Check for named frequencies
@@ -718,6 +722,7 @@ bool doDigit(int16_t enc)
 bool clickFreq(bool shortPress)
 {
   if (shortPress) {
+    uint32_t previousFrequency = freqToHz(currentFrequency, currentMode) + currentBFO;
     bool updated = false;
 
      // SSB tuning
@@ -729,6 +734,7 @@ bool clickFreq(bool shortPress)
      }
 
      if (updated) {
+       if(freqToHz(currentFrequency, currentMode) + currentBFO != previousFrequency) useStepTuneMode();
        // Clear current station name and information
        clearStationInfo();
        // Check for named frequencies

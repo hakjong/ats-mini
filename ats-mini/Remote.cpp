@@ -195,6 +195,7 @@ static bool remoteSetFrequency(Stream *stream)
   int targetBfo = isSSB() ? bfoFromHz(freqHz) : 0;
   if(!isFreqInBand(band, targetFreq) || (isSSB() && targetFreq == band->maximumFreq && targetBfo))
     return remoteShowError(stream, "Frequency is out of range for the current band");
+  uint32_t previousFrequency = freqToHz(currentFrequency, currentMode) + currentBFO;
   if(!updateFrequency(targetFreq, false))
     return remoteShowError(stream, "Frequency is out of range for the current band");
 
@@ -202,6 +203,8 @@ static bool remoteSetFrequency(Stream *stream)
     updateBFO(targetBfo, false);
   else if(currentBFO)
     updateBFO(0, true);
+
+  if(freqToHz(currentFrequency, currentMode) + currentBFO != previousFrequency) useStepTuneMode();
 
   clearStationInfo();
   identifyFrequency(currentFrequency + currentBFO / 1000);

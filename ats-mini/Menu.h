@@ -131,6 +131,7 @@ int getTotalBands();
 int getTotalModes();
 int getTotalMemories();
 const char *getTuneModeName();
+void useStepTuneMode();
 bool currentFrequencyIsFavorite();
 Band *getCurrentBand();
 uint8_t getFreqInputPos();
