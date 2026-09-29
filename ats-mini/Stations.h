@@ -3,10 +3,11 @@
 
 #include <stdint.h>
 
-#define STATION_ADD_CURRENT  0
-#define STATION_ATS_SCAN     1
-#define STATION_CLEAR        2
-#define STATION_ACTION_COUNT 3
+#define STATION_BACK         0
+#define STATION_ADD_CURRENT  1
+#define STATION_ATS_SCAN     2
+#define STATION_CLEAR        3
+#define STATION_ACTION_COUNT 4
 #define STATION_GROUP_COUNT  3
 
 enum StationGroup : uint8_t

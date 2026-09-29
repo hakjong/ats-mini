@@ -115,6 +115,7 @@ bool stationsHasFrequency(uint16_t frequency)
 uint16_t stationsSelected() { return selected; }
 void stationsSelectFrequency(uint16_t frequency)
 {
+  selected = STATION_BACK;
   uint16_t visibleIndex = 0;
   for(uint16_t i = 0; i < stations.count; ++i)
     if(frequencyInCurrentBand(stations.frequencies[i]))
