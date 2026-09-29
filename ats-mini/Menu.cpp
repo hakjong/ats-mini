@@ -156,6 +156,7 @@ void useStepTuneMode()
 }
 
 // More submenu
+#define SUBMENU_BACK   -1
 #define MORE_SQUELCH   0
 #define MORE_BW        1
 #define MORE_AGC_ATT   2
@@ -1214,7 +1215,7 @@ void openMainMenu()
 
 static void doMore(int16_t enc)
 {
-  moreIdx = wrap_range(moreIdx, enc, 0, LAST_ITEM(more));
+  moreIdx = wrap_range(moreIdx, enc, SUBMENU_BACK, LAST_ITEM(more));
 }
 
 static void doTuneMenu(int16_t enc)
@@ -1235,8 +1236,14 @@ static void clickMenu(int cmd, bool shortPress)
       break;
     case MENU_SEEK:     currentCmd = CMD_SEEK;      break;
     case MENU_BAND:     currentCmd = CMD_BAND;      break;
-    case MENU_MORE:     currentCmd = CMD_MORE;      break;
-    case MENU_SETTINGS: currentCmd = CMD_SETTINGS;  break;
+    case MENU_MORE:
+      moreIdx = SUBMENU_BACK;
+      currentCmd = CMD_MORE;
+      break;
+    case MENU_SETTINGS:
+      settingsIdx = SUBMENU_BACK;
+      currentCmd = CMD_SETTINGS;
+      break;
     case MENU_VOLUME:   currentCmd = CMD_VOLUME;    break;
 
     case MENU_MEMORY:
@@ -1345,6 +1352,11 @@ static void clickTuneMenu()
 
 static void clickMore(int cmd)
 {
+  if(cmd == SUBMENU_BACK)
+  {
+    currentCmd = CMD_MENU;
+    return;
+  }
   currentCmd = CMD_NONE;
   switch(cmd)
   {
@@ -1365,11 +1377,17 @@ static void clickMore(int cmd)
 
 static void doSettings(int16_t enc)
 {
-  settingsIdx = wrap_range(settingsIdx, enc, 0, LAST_ITEM(settings));
+  settingsIdx = wrap_range(settingsIdx, enc, SUBMENU_BACK, LAST_ITEM(settings));
 }
 
 static void clickSettings(int cmd, bool shortPress)
 {
+  if(cmd == SUBMENU_BACK)
+  {
+    currentCmd = CMD_MENU;
+    return;
+  }
+
   // No command yet
   currentCmd = CMD_NONE;
 
@@ -1639,10 +1657,12 @@ static void drawMore(int x, int y, int sx)
 {
   drawCommon(menu[MENU_MORE], x, y, sx, true);
 
-  int count = ITEM_COUNT(more);
+  int count = ITEM_COUNT(more) + 1;
+  int position = moreIdx + 1;
   for(int i=-2; i<3; ++i)
   {
-    const char *label = more[(moreIdx + count + i) % count];
+    int index = (position + count + i) % count - 1;
+    const char *label = index == SUBMENU_BACK ? "<-" : more[index];
     if(i == 0)
     {
       drawZoomedMenu(label);
@@ -1669,18 +1689,21 @@ static void drawSettings(int x, int y, int sx)
   spr.setTextColor(TH.menu_item);
   spr.fillRoundRect(6+x, 24+y+(2*16), 66+sx, 16, 2, TH.menu_hl_bg);
 
-  int count = ITEM_COUNT(settings);
+  int count = ITEM_COUNT(settings) + 1;
+  int position = settingsIdx + 1;
   for(int i=-2 ; i<3 ; i++)
   {
+    int index = (position + count + i) % count - 1;
+    const char *label = index == SUBMENU_BACK ? "<-" : settings[index];
     if(i==0) {
-      drawZoomedMenu(settings[abs((settingsIdx+count+i)%count)]);
+      drawZoomedMenu(label);
       spr.setTextColor(TH.menu_hl_text, TH.menu_hl_bg);
     } else {
       spr.setTextColor(TH.menu_item);
     }
 
     spr.setTextDatum(MC_DATUM);
-    spr.drawString(settings[abs((settingsIdx+count+i)%count)], 40+x+(sx/2), 64+y+(i*16), FONT_SMALL);
+    spr.drawString(label, 40+x+(sx/2), 64+y+(i*16), FONT_SMALL);
   }
 }
 

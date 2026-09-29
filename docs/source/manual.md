@@ -60,8 +60,8 @@ The menu can be invoked by clicking the encoder button and is closed automatical
 * **ETM Scan** - Replaces the current band's ETM list with stations found in a whole-band AM/FM scan, then selects ETM in TuneMode. The scan results are saved in flash and survive power off. Click or rotate during scanning to cancel and keep the previous ETM list. ETM Scan is unavailable in LSB/USB modes and holds up to 256 frequencies per band.
 * **ETM+ Scan** - Shown on AM shortwave bands. Scans the current band into one of 24 hourly lists, **E00** through **E23**, selected from the displayed local time. When the scan completes, TuneMode changes to ETM+. Each shortwave band and hour has its own list of up to 256 frequencies. Set the clock and UTC Offset before scanning. Click or rotate during scanning to cancel and preserve that hour's previous list. The lists are saved in flash and survive power off.
 * **Favorite** - 99 slots to store favorite frequencies. Short press (>0.5 sec) on an empty slot to store the current frequency, short press to erase a slot, switch between stored slots by rotating the encoder, click to exit the menu. It is also possible to edit the favorite slots via [remote control](remote.md) or via the [web based tool](memory.md) in Google Chrome.
-* **Settings** - Settings submenu.
-* **---More---** - Opens the receiver controls listed below.
+* **Settings** - Settings submenu. Its first **<-** item returns to the main menu.
+* **---More---** - Opens the receiver controls listed below. Its first **<-** item returns to the main menu.
 
 ## More submenu
 
