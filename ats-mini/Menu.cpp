@@ -758,7 +758,6 @@ static void clickScan(bool shortPress)
 }
 
 static bool stationActionConfirm = false;
-static bool stationDeleteConfirm = false;
 static uint8_t stationConfirmIdx = 0;
 
 static void runStationAction()
@@ -797,6 +796,10 @@ static void runStationAction()
     case STATION_CLEAR:
       if(!stationsClear()) statusShow("Save failed");
       break;
+
+    default:
+      if(!stationsDeleteSelected()) statusShow("Save failed");
+      break;
   }
 }
 
@@ -816,17 +819,11 @@ static void clickStations(bool shortPress)
     return;
   }
 
-  if(stationsSelected() < STATION_ACTION_COUNT)
+  if(stationsSelected() >= STATION_ACTION_COUNT)
   {
-    if(shortPress)
+    if(!shortPress)
     {
       currentCmd = CMD_NONE;
-      return;
-    }
-
-    if(stationsSelected() == STATION_BACK)
-    {
-      currentCmd = CMD_MENU;
       return;
     }
 
@@ -835,20 +832,20 @@ static void clickStations(bool shortPress)
     return;
   }
 
-  if(!shortPress)
+  if(shortPress)
   {
-    stationDeleteConfirm = false;
     currentCmd = CMD_NONE;
     return;
   }
 
-  if(!stationDeleteConfirm)
+  if(stationsSelected() == STATION_BACK)
   {
-    stationDeleteConfirm = true;
+    currentCmd = CMD_MENU;
     return;
   }
-  stationDeleteConfirm = false;
-  if(!stationsDeleteSelected()) statusShow("Save failed");
+
+  stationConfirmIdx = 0;
+  stationActionConfirm = true;
 }
 
 static void doTheme(int16_t enc)
@@ -1265,7 +1262,6 @@ static void clickMenu(int cmd, bool shortPress)
       stationsLoad(bandIdx);
       stationsSelectFrequency(currentFrequency);
       stationActionConfirm = false;
-      stationDeleteConfirm = false;
       stationConfirmIdx = 0;
       currentCmd = CMD_STATIONS;
       break;
@@ -1467,10 +1463,7 @@ bool doSideBar(uint16_t cmd, int16_t enc, int16_t enca)
       if(stationActionConfirm)
         stationConfirmIdx = wrap_range(stationConfirmIdx, scrollDirection * enc, 0, 1);
       else
-      {
-        stationDeleteConfirm = false;
         stationsSelect(scrollDirection * enc);
-      }
       break;
     case CMD_SLEEP:      doSleep(enca);break;
     case CMD_SLEEPMODE:  doSleepMode(scrollDirection * enc);break;
@@ -1662,7 +1655,7 @@ static void drawMore(int x, int y, int sx)
   for(int i=-2; i<3; ++i)
   {
     int index = (position + count + i) % count - 1;
-    const char *label = index == SUBMENU_BACK ? "<-" : more[index];
+    const char *label = index == SUBMENU_BACK ? "---Back---" : more[index];
     if(i == 0)
     {
       drawZoomedMenu(label);
@@ -1694,7 +1687,7 @@ static void drawSettings(int x, int y, int sx)
   for(int i=-2 ; i<3 ; i++)
   {
     int index = (position + count + i) % count - 1;
-    const char *label = index == SUBMENU_BACK ? "<-" : settings[index];
+    const char *label = index == SUBMENU_BACK ? "---Back---" : settings[index];
     if(i==0) {
       drawZoomedMenu(label);
       spr.setTextColor(TH.menu_hl_text, TH.menu_hl_bg);
@@ -1868,8 +1861,10 @@ static void drawStations(int x, int y, int sx)
       strlcpy(title, "ATS scan?", sizeof(title));
     else if(stationsSelected() == STATION_ADD_CURRENT)
       strlcpy(title, "Add current?", sizeof(title));
-    else
+    else if(stationsSelected() == STATION_CLEAR)
       strlcpy(title, "Clear all?", sizeof(title));
+    else
+      strlcpy(title, "Delete?", sizeof(title));
 
     drawCommon(title, x, y, sx, true);
     static const char *const confirmOptions[] = { "No", "Yes" };
@@ -1890,10 +1885,7 @@ static void drawStations(int x, int y, int sx)
     return;
   }
 
-  if(stationDeleteConfirm)
-    strlcpy(title, "Delete?", sizeof(title));
-  else
-    snprintf(title, sizeof(title), "Memory %u", stationsCount());
+  snprintf(title, sizeof(title), "Memory %u", stationsCount());
   drawCommon(title, x, y, sx, true);
 
   spr.setTextDatum(MC_DATUM);
@@ -1904,7 +1896,7 @@ static void drawStations(int x, int y, int sx)
     if(index < 0 || index >= count) continue;
     char frequency[16];
     if(index == STATION_BACK)
-      strlcpy(frequency, "<-", sizeof(frequency));
+      strlcpy(frequency, "---Back---", sizeof(frequency));
     else if(index == STATION_ADD_CURRENT)
       strlcpy(frequency, "Add Current", sizeof(frequency));
     else if(index == STATION_ATS_SCAN)
@@ -1918,7 +1910,7 @@ static void drawStations(int x, int y, int sx)
 
     if(i == 0)
     {
-      drawZoomedMenu(stationDeleteConfirm ? "Hold again" : frequency);
+      drawZoomedMenu(frequency);
       spr.setTextColor(TH.menu_hl_text, TH.menu_hl_bg);
     }
     else spr.setTextColor(TH.menu_item);
