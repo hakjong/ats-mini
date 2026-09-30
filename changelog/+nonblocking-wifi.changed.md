@@ -1,1 +1,1 @@
-Connect to Wi-Fi and synchronize time in the background so startup, tuning, and menus remain responsive.
+Connect to Wi-Fi and synchronize time in the background so startup, tuning, and menus remain responsive. The Wi-Fi icon blinks during connection attempts instead of showing a persistent connecting message.

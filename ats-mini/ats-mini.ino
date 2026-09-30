@@ -1052,7 +1052,7 @@ void loop()
   prefsTickTime();
 
   // Tick NETWORK time, connecting to WiFi if requested
-  netTickTime();
+  needRedraw |= netTickTime();
 
   // Update clock display
   needRedraw |= clockUpdate();

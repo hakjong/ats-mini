@@ -73,6 +73,7 @@ static std::atomic<uint32_t> netGeneration{0};
 static std::atomic<uint32_t> netCompleted{0};
 static std::atomic<bool> ntpHasTime{false};
 static std::atomic<NetAction> netAction{NET_STOP};
+static std::atomic<uint8_t> netRequestedMode{NET_OFF};
 
 // Settings
 String loginUsername = "";
@@ -163,6 +164,7 @@ static bool netQueue(NetAction action, uint8_t mode)
   }
 
   NetRequest request = { action, mode, netGeneration.fetch_add(1) + 1 };
+  netRequestedMode.store(mode);
   netAction.store(action);
   xQueueOverwrite(netRequests, &request);
   return true;
@@ -191,7 +193,7 @@ void netRequestConnect()
   itIsTimeToWiFi = true;
 }
 
-void netTickTime()
+bool netTickTime()
 {
   otaTick();
 
@@ -214,6 +216,23 @@ void netTickTime()
     netInit(wifiModeIdx);
     itIsTimeToWiFi = false;
   }
+
+  static bool wasConnecting = false;
+  static bool previousBlink = false;
+  bool connecting = netIsConnecting();
+  bool blink = connecting && (millis() & 0x200);
+  bool redraw = connecting != wasConnecting || (connecting && blink != previousBlink);
+  wasConnecting = connecting;
+  previousBlink = blink;
+  return redraw;
+}
+
+bool netIsConnecting()
+{
+  if(netCompleted.load() == netGeneration.load() || WiFi.status() == WL_CONNECTED) return false;
+
+  NetAction action = netAction.load();
+  return action == NET_SYNC_ONCE || (action == NET_INIT && netRequestedMode.load() > NET_AP_ONLY);
 }
 
 //
@@ -288,8 +307,8 @@ void netInit(uint8_t netMode)
 {
   tcpStop();
   if(netMode == NET_OFF && !netRequests) return;
-  if(netMode != NET_OFF)
-    statusShow(netMode == NET_AP_ONLY ? "Starting access point..." : "Connecting to WiFi network...", nullptr, 0);
+  if(netMode == NET_AP_ONLY)
+    statusShow("Starting access point...", nullptr, 0);
   else
     statusShow(nullptr);
   netQueue(NET_INIT, netMode);
@@ -303,7 +322,7 @@ void netSyncTimeOnce()
     statusShow("Set Wi-Fi mode to Off");
     return;
   }
-  statusShow("Connecting to WiFi network...", nullptr, 0);
+  statusShow(nullptr);
   netQueue(NET_SYNC_ONCE);
 }
 

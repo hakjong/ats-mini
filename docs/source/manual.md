@@ -7,7 +7,7 @@
 * **RSSI meter** (top left corner), also serves as a mono/stereo indicator in FM mode (one/two rows).
 * **Settings save icon** (right after the RSSI meter). The settings are saved to non-volatile memory after 10 seconds of inactivity.
 * **Bluetooth icon** (right after the save icon). Different colors indicate the connection status.
-* **Wi-Fi icon** (top right area near the battery). Different colors indicate the connection status.
+* **Wi-Fi icon** (top right area near the battery). Different colors indicate the connection status, and the icon blinks while connecting to a network.
 * **Battery status** (top right corner). It doesn't show the voltage when charged, see [#36](https://github.com/esp32-si4732/ats-mini/issues/36#issuecomment-2778356143). The only indication that the battery is charging is the hardware LED on the bottom of the receiver, which turns ON during charging.
 * **Band name and modulation** (VHF & FM, top center). See the [Bands table](#bands-table) for more details.
 * **Info panel** (the box on the left side), also **Menu**. The parameters are explained in the [Menu](#menu) section. Also it can show the current time, or the date and time after a successful synchronization.

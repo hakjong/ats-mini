@@ -251,6 +251,7 @@ bool identifyFrequency(uint16_t freq, bool periodic = false);
 // Network.cpp
 int8_t getWiFiStatus();
 char *getWiFiIPAddress();
+bool netIsConnecting();
 void netInit(uint8_t netMode);
 void netStop();
 void netSyncTimeOnce();
@@ -259,7 +260,7 @@ bool ntpIsAvailable();
 bool ntpSyncTime();
 
 void netRequestConnect();
-void netTickTime();
+bool netTickTime();
 
 // Remote.c
 #define REMOTE_CHANGED   1
