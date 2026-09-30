@@ -1,1 +1,1 @@
-Manually moving the frequency with digit tuning, press-and-rotate tuning, or a remote frequency command now changes TuneMode from Memory, ETM, or ETM+ to Step and saves the selection.
+Direct frequency input by pressing and rotating is now available only in Step TuneMode and no longer changes TuneMode itself. A remote frequency command still changes TuneMode from Memory, ETM, or ETM+ to Step and saves the selection.

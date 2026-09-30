@@ -688,7 +688,6 @@ bool doTune(int16_t enc)
 //
 bool doDigit(int16_t enc)
 {
-  uint32_t previousFrequency = freqToHz(currentFrequency, currentMode) + currentBFO;
   bool updated = false;
 
   // SSB tuning
@@ -707,7 +706,6 @@ bool doDigit(int16_t enc)
   }
 
   if (updated) {
-    if(freqToHz(currentFrequency, currentMode) + currentBFO != previousFrequency) useStepTuneMode();
     // Clear current station name and information
     clearStationInfo();
     // Check for named frequencies
@@ -722,7 +720,6 @@ bool doDigit(int16_t enc)
 bool clickFreq(bool shortPress)
 {
   if (shortPress) {
-    uint32_t previousFrequency = freqToHz(currentFrequency, currentMode) + currentBFO;
     bool updated = false;
 
      // SSB tuning
@@ -734,7 +731,6 @@ bool clickFreq(bool shortPress)
      }
 
      if (updated) {
-       if(freqToHz(currentFrequency, currentMode) + currentBFO != previousFrequency) useStepTuneMode();
        // Clear current station name and information
        clearStationInfo();
        // Check for named frequencies
@@ -867,9 +863,12 @@ void loop()
       switch(currentCmd)
       {
         case CMD_NONE:
-          // Activate frequency input mode
-          currentCmd = CMD_FREQ;
-          needRedraw = true;
+          // Frequency input by pressing and rotating is available only in Step mode.
+          if(tuneModeIdx == TUNE_STEP)
+          {
+            currentCmd = CMD_FREQ;
+            needRedraw = true;
+          }
           break;
         case CMD_FREQ:
           // Select digit
