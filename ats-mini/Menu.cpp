@@ -844,6 +844,12 @@ static void clickStations(bool shortPress)
     return;
   }
 
+  if(stationsSelected() == STATION_ADD_CURRENT)
+  {
+    runStationAction();
+    return;
+  }
+
   stationConfirmIdx = 0;
   stationActionConfirm = true;
 }
